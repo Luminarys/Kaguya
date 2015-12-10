@@ -95,7 +95,7 @@ defmodule Kaguya.Channel do
   end
 
   @doc """
-  Convnenience function to send a nickstring to a channel.
+  Convenience function to send a nickstring to a channel.
   """
   def set_user(chan, nick) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)

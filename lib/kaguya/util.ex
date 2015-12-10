@@ -23,4 +23,11 @@ defmodule Kaguya.Util do
     m = %Message{command: "JOIN", args: [channel]}
     :ok = GenServer.call(Kaguya.Core, {:send, m})
   end
+
+  def getChanPid(channel) do
+    case :ets.lookup(:channels, channel) do
+      [{^channel, pid}] -> pid
+      [] -> nil
+    end
+  end
 end
