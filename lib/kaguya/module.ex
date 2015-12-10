@@ -107,18 +107,24 @@ defmodule Kaguya.Module do
   ## Example
   ```
   handle "PRIVMSG" do
-    match "!rand :low :high", :genRand
+    match "!rand :low :high", :genRand, match_group: "[0-9]+"
   end
   ```
 
   In this example, the geRand function will be called
   when a user sends a message to a channel saying something like
-  `!rand 0 10`. The genRand function will be passed the messages,
-  and a map which will look like `%{low: 0, high: 10}`.
+  `!rand 0 10`. If both parameters are strings, the genRand function
+  will be passed the messages, and a map which will look like `%{low: 0, high: 10}`.
 
-  Available match params are `:param` and `~param`. The former
+  Available match string params are `:param` and `~param`. The former
   will match a specific space separated parameter, whereas the latter matches
   an unlimited number of characters.
+
+  Match can also be called with a few different options. Currently there are:
+  * match_group - Regex which is used for matching in the match string. By default
+  it is `[a-zA-Z0-9]+`
+  * async - Whether or not the matcher should be run synchronously or asynchronously.
+  By default it is false, but should be set to true if await_resp is to be used.
   """
   defmacro match(match_str, function, opts \\ []) do
     add_captures(match_str, function, opts)
@@ -266,6 +272,17 @@ defmodule Kaguya.Module do
   In this example, the bot will say "Fine." upon the function being run,
   and then wait for the user in the channel to say the target phrase.
   On doing so, the bot responds with the given reply.
+
+  await_resp also can be called with certain options, these are:
+  * match_group - regex to be used for matching parameters in the given string.
+  By default this is `[a-zA-Z0-9]+`
+  * nick - the user whose nick will be matched against in the callback. Use :any
+  to allow for any nick to be matched against. By default, this will be the nick
+  of the user who sent the currently processed messages
+  * chan - the channel to be matched against. Use :any to allow any channel to be matched
+  against. By default this is the channel where the currently processed message was sent from.
+  * timeout - the timeout period for a message to be matched, in milliseconds. By default it is
+  60000, or 60 seconds.
   """
   defmacro await_resp(match_str, opts \\ []) do
     match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
@@ -287,7 +304,7 @@ defmodule Kaguya.Module do
     if String.contains? match_str, [":", "~"] do
       re = match_str |> extract_vars(match_group) |> Macro.escape
       fn msg ->
-        if msg.args == [chan] and msg.user.nick == nick do
+        if (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
           case Regex.named_captures(re, msg.trailing) do
             nil -> false
             res -> {true, {msg, res}}
@@ -298,7 +315,7 @@ defmodule Kaguya.Module do
       end
     else
       fn msg ->
-        if match_str == msg.trailing and msg.args == [chan] and msg.user.nick == nick do
+        if match_str == msg.trailing and (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
           {true, {msg, nil}}
         else
           false
