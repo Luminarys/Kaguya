@@ -7,6 +7,8 @@ defmodule Kaguya.Mixfile do
      elixir: "~> 1.1",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
+     description: description,
+     package: package,
      deps: deps]
   end
 
@@ -28,6 +30,22 @@ defmodule Kaguya.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    []
+    [{:earmark, "~> 0.1", only: :dev},
+      {:ex_doc, "~> 0.11", only: :dev}]
+  end
+
+  defp description do
+    """
+    A small, powerful, and modular IRC bot framework. Using a flexible macro based
+    routing system, modules can be easily created and used.
+    """
+  end
+
+  defp package do
+    [# These are the default files included in the package
+     files: ["lib", "priv", "mix.exs", "README*", "readme*", "LICENSE*", "license*"],
+     maintainers: ["Luminarys"],
+     licenses: ["MIT"],
+     links: %{"GitHub" => "https://github.com/Luminarys/Kaguya"}]
   end
 end

@@ -2,6 +2,11 @@ defmodule Kaguya.ModuleSupervisor do
   use Supervisor
   require Logger
 
+  @moduledoc """
+  Module supervisor. It runs all modules specified in the :modules
+  configuration option for :kaguya.
+  """
+
   def start_link(opts \\ []) do
     Supervisor.start_link(__MODULE__, :ok, opts)
   end

@@ -4,7 +4,21 @@ defmodule Kaguya.Channel do
   alias Kaguya.ChannelSupervisor, as: ChanSup
   alias Kaguya.Util, as: Util
 
-  def start_link(name, opts) do
+  @moduledoc """
+  Channel GenServer, with a few utility functions for working with
+  channels. As a GenServer, it can be called in the following ways:
+  * {:send, message}, where message is the message to be sent to the channel
+  * {:set_user, nick_string}, where the nick string is a nick with the mode prefix(+, @, etc.)
+  * {:get_user, nick}, where nick is the nick of the user to be returned.
+  The Kaguya.Channel.User struct is returned
+  * {:del_user, nick}, where nick is the nick of the user to be deleted
+  """
+
+  @doc """
+  Starts a channel worker with the given name
+  and options
+  """
+  def start_link(name, opts \\ []) do
     GenServer.start_link(__MODULE__, {name}, opts)
   end
 
@@ -22,7 +36,7 @@ defmodule Kaguya.Channel do
     {:reply, :ok, state}
   end
 
-  defmodule Kaguya.Channel.User do
+  defmodule User do
     @moduledoc """
     Representation of a user in a channel.
     """
@@ -72,11 +86,17 @@ defmodule Kaguya.Channel do
     {:reply, :ok, state}
   end
 
+  @doc """
+  Convnenience function to join the specified channel.
+  """
   def join(channel) do
     {:ok, _pid} = Supervisor.start_child(ChanSup, [channel, []])
     Util.joinChan(channel)
   end
 
+  @doc """
+  Convnenience function to send a nickstring to a channel.
+  """
   def set_user(chan, nick) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
     :ok = GenServer.call(pid, {:set_user, nick})

@@ -48,6 +48,9 @@ defmodule Kaguya.Core.Parser do
     %Message{user: user, command: command, args: arg_list, trailing: trailing}
   end
 
+  @doc """
+  Converts a message struct into a raw string in BNF format.
+  """
   def parse_message_to_raw(message) do
     message
     |> add_prefix

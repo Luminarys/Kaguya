@@ -1,6 +1,13 @@
 defmodule Kaguya.Core do
   use GenServer
 
+  @moduledoc """
+  The core socket handler of the bot. It listens for raw messages
+  from the IRC server, parses them, then dispatches the message.
+  It also takes serialized messages and converts them into raw
+  strings and sends them to the IRC server.
+  """
+
   @initial_state %{socket: nil}
 
   @server Application.get_env(:kaguya, :server) |> String.to_atom
@@ -41,7 +48,7 @@ defmodule Kaguya.Core do
     {:noreply, state}
   end
 
-  def handle_message(raw_message) do
+  defp handle_message(raw_message) do
     require Logger
     Logger.log :debug, "Received: #{raw_message}"
     try do
