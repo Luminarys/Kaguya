@@ -40,7 +40,7 @@ defmodule Kaguya.Module.Simple do
   end
 
   def pingHandler(message), do: reply "pong!"
-  def sayHandler(message, %{message: message}), do: reply message
+  def sayHandler(message, %{message: response}), do: reply response
 end
 ```
 Once you've written a module you need to specify that it be loaded.
