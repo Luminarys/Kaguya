@@ -52,6 +52,18 @@ defmodule Kaguya.Module.Builtin do
     match_all :changeUserNick
   end
 
+  handle "JOIN" do
+    match_all :addNickToChan
+  end
+
+  handle "PART" do
+    match_all :removeNickFromChan
+  end
+
+  handle "QUIT" do
+    match_all :removeNickFromAllChans
+  end
+
   handle "PRIVMSG" do
     GenServer.cast(self, {:check_callbacks, message})
   end
@@ -104,5 +116,26 @@ defmodule Kaguya.Module.Builtin do
   """
   def changeUserNick(%{trailing: new_nick, user: %{nick: old_nick}}) do
     for member <- :pg2.get_members(:channels), do: GenServer.call(member, {:rename_user, {old_nick, new_nick}})
+  end
+
+  @doc """
+  Adds a user to a channel
+  """
+  def addNickToChan(%{user: %{nick: nick}, trailing: chan}) do
+    Kaguya.Channel.set_user(chan, nick)
+  end
+
+  @doc """
+  Removes a user from a channel
+  """
+  def removeNickFromChan(%{user: %{nick: nick}, trailing: chan}) do
+    Kaguya.Channel.del_user(chan, nick)
+  end
+
+  @doc """
+  Remove a user from all channels.
+  """
+  def removeNickFromAllChans(%{user: %{nick: nick}}) do
+    for member <- :pg2.get_members(:channels), do: GenServer.call(member, {:del_user, nick})
   end
 end

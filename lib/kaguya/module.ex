@@ -153,7 +153,7 @@ defmodule Kaguya.Module do
   defp extract_vars(match_str, match_group) do
     parts = String.split(match_str)
     l = for part <- parts, do: gen_part(part, match_group)
-    expr = Enum.join(l, " ")
+    expr = "^#{Enum.join(l, " ")}$"
     Regex.compile!(expr)
   end
 

@@ -44,10 +44,13 @@ defmodule Kaguya.Channel do
   end
 
   def handle_call({:rename_user, {old_nick, new_nick}}, _from, {_name, users} = state) do
-    [{^old_nick, user}] = :ets.lookup(users, old_nick)
-    new_user = %{user | nick: new_nick}
-    :ets.delete(users, old_nick)
-    :ets.insert(users, {new_nick, new_user})
+    case :ets.lookup(users, old_nick) do
+      [{^old_nick, user}] ->
+        new_user = %{user | nick: new_nick}
+        :ets.delete(users, old_nick)
+        :ets.insert(users, {new_nick, new_user})
+      [] -> :ok
+    end
     {:reply, :ok, state}
   end
 
@@ -100,5 +103,13 @@ defmodule Kaguya.Channel do
   def set_user(chan, nick) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
     :ok = GenServer.call(pid, {:set_user, nick})
+  end
+
+  @doc """
+  Convenience function to remove a nick from a channel.
+  """
+  def del_user(chan, nick) do
+    [{^chan, pid}] = :ets.lookup(:channels, chan)
+    :ok = GenServer.call(pid, {:del_user, nick})
   end
 end

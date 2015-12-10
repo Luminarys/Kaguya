@@ -50,3 +50,5 @@ the name of the module you wrote. In the config would look like:
     modules: [Kaguya.Module.Simple, ...],
     ...
 ```
+
+You can find a more full featured example in `example/basic.ex`.
