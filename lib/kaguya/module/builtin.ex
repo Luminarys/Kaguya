@@ -1,19 +1,6 @@
 defmodule Kaguya.Module.Builtin do
   use Kaguya.Module, "builtin"
 
-  validator :is_server do
-    :check_user
-  end
-
-  def check_user(%{user: %{nick: _server, name: "", rdns: ""}}), do: true
-  def check_user(_message), do: false
-
-  handle "NOTICE" do
-    validate :is_server do
-      match "*** Checking :param", :noticeHandler
-    end
-  end
-
   handle "PING" do
     match_all :pingHandler
   end
