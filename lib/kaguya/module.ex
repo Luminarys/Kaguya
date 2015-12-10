@@ -9,7 +9,7 @@ defmodule Kaguya.Module do
   """
 
   defmacro __using__(module_name) do
-    # Module.put_attribute Kaguya, :modules, __MODULE__ 
+    # Module.put_attribute Kaguya, :modules, __MODULE__
     quote bind_quoted: [module_name: module_name] do
       @module_name module_name
       use GenServer
@@ -29,7 +29,8 @@ defmodule Kaguya.Module do
         require Logger
         Logger.log :debug, "Started module #{@module_name}!"
         :pg2.join(:modules, self)
-        {:ok, {}}
+        Process.register(self, __MODULE__)
+        {:ok, []}
       end
 
       defoverridable init: 1
@@ -38,7 +39,7 @@ defmodule Kaguya.Module do
         require Logger
         Logger.log :debug, "Running module #{@module_name}'s dispatcher!"
         try do
-          handle_message({:msg, message}, {true})
+          handle_message({:msg, message}, state)
         rescue
           e in FunctionClauseError ->
             Logger.log :debug, "Message fell through for #{@module_name}!"
@@ -76,22 +77,26 @@ defmodule Kaguya.Module do
   Defines a matcher which always calls its corresponding
   function. Example: `match_all :pingHandler`
   """
-  defmacro match_all(function) do
+  defmacro match_all(function, opts \\ []) do
+    mbody =
     quote do
       unquote(function)(var!(message))
     end
+    mbody |> check_async(opts)
   end
 
   @doc """
   Defines a matcher which will match a regex againt the trailing portion
   of an IRC message. Example: `match_re ~r"me|you", :meOrYouHandler`
   """
-  defmacro match_re(re, function) do
+  defmacro match_re(re, function, opts \\ []) do
+    mbody =
     quote do
       if Regex.match?(unquote(re), var!(message).trailing) do
         unquote(function)(var!(message))
       end
     end
+    mbody |> check_async(opts)
   end
 
   @doc """
@@ -102,7 +107,7 @@ defmodule Kaguya.Module do
   ## Example
   ```
   handle "PRIVMSG" do
-    match_all "!rand :low :high", :genRand
+    match "!rand :low :high", :genRand
   end
   ```
 
@@ -115,9 +120,15 @@ defmodule Kaguya.Module do
   will match a specific space separated parameter, whereas the latter matches
   an unlimited number of characters.
   """
-  defmacro match(match_str, function) do
-    re = match_str |> extract_vars |> Macro.escape
+  defmacro match(match_str, function, opts \\ []) do
+    add_captures(match_str, function, opts)
+    |> check_async(opts)
+  end
+
+  defp add_captures(match_str, function, opts) do
     if String.contains? match_str, [":", "~"] do
+      match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
+      re = match_str |> extract_vars(match_group) |> Macro.escape
       quote do
         case Regex.named_captures(unquote(re), var!(message).trailing) do
           nil -> :ok
@@ -133,18 +144,30 @@ defmodule Kaguya.Module do
     end
   end
 
-  defp extract_vars(match_str) do
+  defp extract_vars(match_str, match_group) do
     parts = String.split(match_str)
-    l = for part <- parts, do: gen_part(part)
+    l = for part <- parts, do: gen_part(part, match_group)
     expr = Enum.join(l, " ")
     Regex.compile!(expr)
   end
 
-  defp gen_part(part) do
+  defp gen_part(part, match_group) do
     case part do
-      ":" <> param -> "(?<#{param}>[a-zA-Z0-9]+)"
+      ":" <> param -> "(?<#{param}>#{match_group})"
       "~" <> param -> "(?<#{param}>.+)"
       text -> Regex.escape(text)
+    end
+  end
+
+  defp check_async(body, opts) do
+    if Keyword.get(opts, :async, false) do
+      quote do
+        Task.start fn ->
+          unquote(body)
+        end
+      end
+    else
+      body
     end
   end
 
@@ -217,6 +240,77 @@ defmodule Kaguya.Module do
     quote do
       [chan] = var!(message).args
       Kaguya.Util.sendPM(unquote(response), chan)
+    end
+  end
+
+  @doc """
+  Waits for an irc user to send a message which matches the given match string,
+  and returns the resulting map. The user(s) listened for, channel listened for,
+  timeout, and match params can all be tweaked. If the matcher times out,
+  the variables new_message and resp will be set to nil, otherwise they will
+  contain the message and the parameter map respectively for use.
+
+  You must use await_resp in a match which has the asnyc: true
+  flag enabled or the module will time out.
+  ## Example:
+  ```
+  def handleOn(message, %{"target" => t, "repl" => r}) do
+    reply "Fine."
+    {msg, _resp} = await_resp t
+    if msg != nil do
+      reply r
+    end
+  end
+  ```
+
+  In this example, the bot will say "Fine." upon the function being run,
+  and then wait for the user in the channel to say the target phrase.
+  On doing so, the bot responds with the given reply.
+  """
+  defmacro await_resp(match_str, opts \\ []) do
+    match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
+    timeout = Keyword.get(opts, :timeout, 60000)
+    quote bind_quoted: [opts: opts, timeout: timeout, match_str: match_str, match_group: match_group] do
+      nick = Keyword.get(opts, :nick, var!(message).user.nick)
+      [def_chan] = var!(message).args
+      chan = Keyword.get(opts, :chan, def_chan)
+      Kaguya.Module.await_resp(match_str, chan, nick, timeout, match_group)
+    end
+  end
+
+  @doc """
+  Actual function used to execute await_resp. The macro should be preferred
+  most of the time, but the function can be used if necessary.
+  """
+  def await_resp(match_str, chan, nick, timeout, match_group) do
+    f =
+    if String.contains? match_str, [":", "~"] do
+      re = match_str |> extract_vars(match_group) |> Macro.escape
+      fn msg ->
+        if msg.args == [chan] and msg.user.nick == nick do
+          case Regex.named_captures(re, msg.trailing) do
+            nil -> false
+            res -> {true, {msg, res}}
+          end
+        else
+          false
+        end
+      end
+    else
+      fn msg ->
+        if match_str == msg.trailing and msg.args == [chan] and msg.user.nick == nick do
+          {true, {msg, nil}}
+        else
+          false
+        end
+      end
+    end
+
+    try do
+      GenServer.call(Kaguya.Module.Builtin, {:add_callback, f}, timeout)
+    catch
+      :exit, _ -> GenServer.cast(Kaguya.Module.Builtin, {:remove_callback, self})
+      {nil, nil}
     end
   end
 end
