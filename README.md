@@ -5,10 +5,11 @@
 ## Installation
 
   1. Add kaguya to your list of dependencies in `mix.exs`:
-
+  ```elixir
         def deps do
           [{:kaguya, "~> x.y.z"}]
         end
+    ```
 
   2. Run `mix deps.get`
 
@@ -18,6 +19,7 @@
           [applications: [:kaguya]]
         end
     ```
+
   4. Configure kaguya in config.exs:
   ```elixir
         config :kaguya,
