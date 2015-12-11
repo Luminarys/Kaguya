@@ -7,28 +7,31 @@
   1. Add kaguya to your list of dependencies in `mix.exs`:
 
         def deps do
-          [{:kaguya, "~> 0.1.0"}]
+          [{:kaguya, "~> x.y.z"}]
         end
 
-  2. Ensure kaguya is started before your application:
+  2. Run `mix deps.get`
 
+  3. Ensure kaguya is started before your application:
+  ```elixir
         def application do
           [applications: [:kaguya]]
         end
-
-  3. Configure kaguya in config.exs:
-
+    ```
+  4. Configure kaguya in config.exs:
+  ```elixir
         config :kaguya,
           server: "my.irc.server",
           port: 6666,
           bot_name: "kaguya",
           modules: [],
           channels: ["#kaguya"]
+    ```
 
 ## Usage
 By default Kaguya won't do much. This is an example of a module which will
 perform a few simple commands:
-```
+```elixir
 defmodule Kaguya.Module.Simple do
   use Kaguya.Module, "simple"
 
@@ -51,7 +54,7 @@ against.
 Once you've written a module you need to specify that it be loaded.
 You can do this by modifying the config parameter `modules` to include
 the name of the module you wrote. In the config would look like:
-```
+```elixir
   config :kaguya,
     ...
     modules: [Kaguya.Module.Simple, ...],
