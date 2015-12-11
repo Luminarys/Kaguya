@@ -41,8 +41,15 @@ defmodule Kaguya.Module.Simple do
   def sayHandler(message, %{message: response}), do: reply response
 end
 ```
+
+This module defines two commands to be handled. `!ping`, to which the bot
+will respond `pong!`, and `!say [some message]` which will have
+the bot echo the message the user gave. The `~` indicates a
+trailing match in which all characters following `!say ` will be matched
+against.
+
 Once you've written a module you need to specify that it be loaded.
-You can do this my modifying the config parameter `modules` to include
+You can do this by modifying the config parameter `modules` to include
 the name of the module you wrote. In the config would look like:
 ```
   config :kaguya,
