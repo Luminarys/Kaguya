@@ -97,20 +97,36 @@ defmodule Kaguya.Module do
   * async - runs the matcher asynchronously when this is true
   * uniq - ensures only one version of the matcher can be running per channel.
   Should be used with async: true.
+  * capture - if true, then the regex will be matched as a named captures,
+  and the specified function will be called with the message and resulting
+  map on successful match. By default this option is false.
   """
   defmacro match_re(re, function, opts \\ []) do
-    func_exec_ast = quote do: unquote(function)(var!(message))
+    if Keyword.get(opts, :capture, false) do
+      func_exec_ast = quote do: unquote(function)(var!(message), res)
+    else
+      func_exec_ast = quote do: unquote(function)(var!(message))
+    end
 
     func_exec_ast
     |> check_async(function, opts)
     |> check_unique(function, opts)
-    |> add_re_matcher(re)
+    |> add_re_matcher(re, opts)
   end
 
-  defp add_re_matcher(body, re) do
-    quote do
-      if Regex.match?(unquote(re), var!(message).trailing) do
-        unquote(body)
+  defp add_re_matcher(body, re, opts) do
+    if Keyword.get(opts, :capture, false) do
+      quote do
+        case Regex.named_captures(unquote(re), var!(message).trailing) do
+          nil -> :ok
+          res -> unquote(body)
+        end
+      end
+    else
+      quote do
+        if Regex.match?(unquote(re), var!(message).trailing) do
+          unquote(body)
+        end
       end
     end
   end
