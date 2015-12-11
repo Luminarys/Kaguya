@@ -14,6 +14,15 @@ defmodule Kaguya.Channel do
   * {:del_user, nick}, where nick is the nick of the user to be deleted
   """
 
+  @max_buffer 10000
+
+  defmodule User do
+    @moduledoc """
+    Representation of a user in a channel.
+    """
+    defstruct nick: "", mode: :normal
+  end
+
   @doc """
   Starts a channel worker with the given name
   and options
@@ -28,22 +37,15 @@ defmodule Kaguya.Channel do
     :pg2.join(:channels, self)
     :ets.insert(:channels, {name, self})
     users = :ets.new(:users, [:set, :protected])
-    {:ok, {name, users}}
+    {:ok, {name, users, []}}
   end
 
-  def handle_call({:send, message}, _from, {name, _users} = state) do
+  def handle_call({:send, message}, _from, {name, _users, _buffer} = state) do
     Kaguya.Util.sendPM(name, message)
     {:reply, :ok, state}
   end
 
-  defmodule User do
-    @moduledoc """
-    Representation of a user in a channel.
-    """
-    defstruct nick: "", mode: :normal
-  end
-
-  def handle_call({:rename_user, {old_nick, new_nick}}, _from, {_name, users} = state) do
+  def handle_call({:rename_user, {old_nick, new_nick}}, _from, {_name, users, _buffer} = state) do
     case :ets.lookup(users, old_nick) do
       [{^old_nick, user}] ->
         new_user = %{user | nick: new_nick}
@@ -54,12 +56,12 @@ defmodule Kaguya.Channel do
     {:reply, :ok, state}
   end
 
-  def handle_call({:set_user, nick_mode}, _from, {_name, users} = state) do
+  def handle_call({:set_user, nick_mode}, _from, {_name, users, _buffer} = state) do
     mode_sym = String.first(nick_mode)
     mode =
     case mode_sym do
-      "~" -> :owner
-      "&" -> :admin
+      "~" -> :op
+      "&" -> :op
       "@" -> :op
       "+" -> :voice
       _ -> :normal
@@ -77,16 +79,30 @@ defmodule Kaguya.Channel do
     {:reply, :ok, state}
   end
 
-  def handle_call({:get_user, nick}, _from, {_name, users} = state) do
+  def handle_call({:get_user, nick}, _from, {_name, users, _buffer} = state) do
     case :ets.lookup(users, nick) do
       [{^nick, user}] -> {:reply, user, state}
       [] -> {:reply, nil, state}
     end
   end
 
-  def handle_call({:del_user, nick}, _from, {_name, users} = state) do
+  def handle_call({:del_user, nick}, _from, {_name, users, _buffer} = state) do
     :ets.delete(users, nick)
     {:reply, :ok, state}
+  end
+
+  def handle_call({:log_message, msg}, _from, {name, users, buffer}) do
+    new_buffer =
+    if Enum.count(buffer) > @max_buffer do
+      [msg|buffer]
+    else
+      [msg|buffer] |> Enum.drop(-1)
+    end
+    {:reply, :ok, {name, users, new_buffer}}
+  end
+
+  def handle_call({:get_buffer, fun}, _from, {_name, _users, buffer} = state) do
+    {:reply, fun.(buffer), state}
   end
 
   @doc """
@@ -111,5 +127,14 @@ defmodule Kaguya.Channel do
   def del_user(chan, nick) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
     :ok = GenServer.call(pid, {:del_user, nick})
+  end
+
+  @doc """
+  Convenience function to perform a function on a channel's buffer
+  and get the result.
+  """
+  def get_buffer(chan, fun) do
+    [{^chan, pid}] = :ets.lookup(:channels, chan)
+    :ok = GenServer.call(pid, {:get_buffer, fun})
   end
 end

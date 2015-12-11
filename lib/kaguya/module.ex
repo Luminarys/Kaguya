@@ -175,7 +175,7 @@ defmodule Kaguya.Module do
       end
     else
       quote do
-       unquote(function)(var!(message))
+        unquote(function)(var!(message))
       end
     end
   end
@@ -206,7 +206,6 @@ defmodule Kaguya.Module do
             Process.exit(pid, :kill)
             :ets.delete(@task_table, "#{unquote(fun_string)}_#{chan}")
           [] ->
-            IO.puts "No dups!"
             nil
         end
         unquote(body)

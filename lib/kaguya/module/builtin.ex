@@ -66,6 +66,7 @@ defmodule Kaguya.Module.Builtin do
 
   handle "PRIVMSG" do
     GenServer.cast(self, {:check_callbacks, message})
+    match_all :logMessage
   end
 
   @doc """
@@ -137,5 +138,15 @@ defmodule Kaguya.Module.Builtin do
   """
   def removeNickFromAllChans(%{user: %{nick: nick}}) do
     for member <- :pg2.get_members(:channels), do: GenServer.call(member, {:del_user, nick})
+  end
+
+  @doc """
+  Logs a PRIVMSG to a channel, or ignores it if it's a PM.
+  """
+  def logMessage(%{args: [chan]} = message) do
+    pid = Kaguya.Util.getChanPid(chan)
+    if pid != nil do
+      GenServer.call(pid, {:log_message, message})
+    end
   end
 end

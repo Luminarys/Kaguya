@@ -13,6 +13,7 @@ defmodule Kaguya.Core do
   @server Application.get_env(:kaguya, :server) |> String.to_atom
   @port Application.get_env(:kaguya, :port)
   @name Application.get_env(:kaguya, :bot_name)
+  @password Application.get_env(:kaguya, :password)
 
   def start_link(opts \\ []) do
     {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, opts)
@@ -39,6 +40,9 @@ defmodule Kaguya.Core do
     Task.start fn ->
       Kaguya.Util.sendUser(@name)
       Kaguya.Util.sendNick(@name)
+      if @password != nil do
+        Kaguya.Util.sendPass(@password)
+      end
     end
     {:noreply, state}
   end
