@@ -9,15 +9,12 @@ defmodule Kaguya.Module do
   """
 
   defmacro __using__(module_name) do
-    # Module.put_attribute Kaguya, :modules, __MODULE__
     quote bind_quoted: [module_name: module_name] do
-      @module_name module_name
       use GenServer
       import Kaguya.Module
 
-      # modules = Application.get_env(:kaguya, :modules, [])
-      # new_modules = [__MODULE__|modules]
-      # Application.put_env(:kaguya, :modules, new_modules, persist: true)
+      @module_name module_name
+      @task_table String.to_atom("#{@module_name}_tasks")
 
       def start_link(opts \\ []) do
         {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, [])
@@ -29,6 +26,8 @@ defmodule Kaguya.Module do
         require Logger
         Logger.log :debug, "Started module #{@module_name}!"
         :pg2.join(:modules, self)
+        table_name = String.to_atom "#{@module_name}_tasks"
+        :ets.new(@task_table, [:set, :public, :named_table, {:read_concurrency, true}, {:write_concurrency, true}])
         Process.register(self, __MODULE__)
         {:ok, []}
       end
@@ -76,27 +75,44 @@ defmodule Kaguya.Module do
   @doc """
   Defines a matcher which always calls its corresponding
   function. Example: `match_all :pingHandler`
+
+  The available options are:
+  * async - runs the matcher asynchronously when this is true
+  * uniq - ensures only one version of the matcher can be running per channel.
+  Should be used with async: true.
   """
   defmacro match_all(function, opts \\ []) do
-    mbody =
-    quote do
-      unquote(function)(var!(message))
-    end
-    mbody |> check_async(opts)
+    func_exec_ast = quote do: unquote(function)(var!(message))
+
+    func_exec_ast
+    |> check_async(function, opts)
+    |> check_unique(function, opts)
   end
 
   @doc """
   Defines a matcher which will match a regex againt the trailing portion
   of an IRC message. Example: `match_re ~r"me|you", :meOrYouHandler`
+
+  The available options are:
+  * async - runs the matcher asynchronously when this is true
+  * uniq - ensures only one version of the matcher can be running per channel.
+  Should be used with async: true.
   """
   defmacro match_re(re, function, opts \\ []) do
-    mbody =
+    func_exec_ast = quote do: unquote(function)(var!(message))
+
+    func_exec_ast
+    |> check_async(function, opts)
+    |> check_unique(function, opts)
+    |> add_re_matcher(re)
+  end
+
+  defp add_re_matcher(body, re) do
     quote do
       if Regex.match?(unquote(re), var!(message).trailing) do
-        unquote(function)(var!(message))
+        unquote(body)
       end
     end
-    mbody |> check_async(opts)
   end
 
   @doc """
@@ -125,26 +141,79 @@ defmodule Kaguya.Module do
   it is `[a-zA-Z0-9]+`
   * async - Whether or not the matcher should be run synchronously or asynchronously.
   By default it is false, but should be set to true if await_resp is to be used.
+  * uniq - When used with the async option, this ensures only one version of the matcher
+  can be running at any given time.
   """
   defmacro match(match_str, function, opts \\ []) do
-    add_captures(match_str, function, opts)
-    |> check_async(opts)
+    match_str
+    |> gen_match_func_call(function, opts)
+    |> check_async(function, opts)
+    |> check_unique(function, opts)
+    |> add_captures(match_str, function, opts)
   end
 
-  defp add_captures(match_str, function, opts) do
+  defp gen_match_func_call(match_str, function, opts) do
     if String.contains? match_str, [":", "~"] do
-      match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
-      re = match_str |> extract_vars(match_group) |> Macro.escape
+      quote do
+        unquote(function)(var!(message), res)
+      end
+    else
+      quote do
+       unquote(function)(var!(message))
+      end
+    end
+  end
+
+  defp check_async(body, function, opts) do
+    if Keyword.get(opts, :async, false) do
+      fun_string = Atom.to_string(function)
+      quote do
+        Task.start fn ->
+          [chan] = var!(message).args
+          :ets.insert(@task_table, {"#{unquote(fun_string)}_#{chan}", self})
+          unquote(body)
+          :ets.delete(@task_table, "#{unquote(fun_string)}_#{chan}")
+        end
+      end
+    else
+      body
+    end
+  end
+
+  defp check_unique(body, function, opts) do
+    fun_string = Atom.to_string(function)
+    if Keyword.get(opts, :uniq, false) do
+      quote do
+        [chan] = var!(message).args
+        case :ets.lookup(@task_table, "#{unquote(fun_string)}_#{chan}") do
+          [{_fun, pid}] ->
+            Process.exit(pid, :kill)
+            :ets.delete(@task_table, "#{unquote(fun_string)}_#{chan}")
+          [] ->
+            IO.puts "No dups!"
+            nil
+        end
+        unquote(body)
+      end
+    else
+      body
+    end
+  end
+
+  defp add_captures(body, match_str, function, opts) do
+    match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
+    re = match_str |> extract_vars(match_group) |> Macro.escape
+    if String.contains? match_str, [":", "~"] do
       quote do
         case Regex.named_captures(unquote(re), var!(message).trailing) do
           nil -> :ok
-          res -> unquote(function)(var!(message), res)
+          res -> unquote(body)
         end
       end
     else
       quote do
         if var!(message).trailing == unquote(match_str) do
-          unquote(function)(var!(message))
+          unquote(body)
         end
       end
     end
@@ -162,18 +231,6 @@ defmodule Kaguya.Module do
       ":" <> param -> "(?<#{param}>#{match_group})"
       "~" <> param -> "(?<#{param}>.+)"
       text -> Regex.escape(text)
-    end
-  end
-
-  defp check_async(body, opts) do
-    if Keyword.get(opts, :async, false) do
-      quote do
-        Task.start fn ->
-          unquote(body)
-        end
-      end
-    else
-      body
     end
   end
 
@@ -258,7 +315,7 @@ defmodule Kaguya.Module do
 
   You must use await_resp in a match which has the asnyc: true
   flag enabled or the module will time out.
-  ## Example:
+  ## Example
   ```
   def handleOn(message, %{"target" => t, "repl" => r}) do
     reply "Fine."

@@ -33,4 +33,4 @@ config :kaguya,
   port: 6666,
   bot_name: "kaguya",
   modules: [],
-  channels: ["#mango"]
+  channels: ["#mango", "##testing"]

@@ -3,7 +3,7 @@ defmodule Kaguya.Mixfile do
 
   def project do
     [app: :kaguya,
-     version: "0.1.0",
+     version: "0.1.1",
      elixir: "~> 1.1",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -29,7 +29,7 @@ defmodule Kaguya.Mixfile do
   #   {:mydep, git: "https://github.com/elixir-lang/mydep.git", tag: "0.1.0"}
   #
   # Type "mix help deps" for more examples and options
-  defp deps do
+  def deps do
     [{:earmark, "~> 0.1", only: :dev},
       {:ex_doc, "~> 0.11", only: :dev}]
   end
