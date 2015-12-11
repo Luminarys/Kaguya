@@ -94,9 +94,9 @@ defmodule Kaguya.Channel do
   def handle_call({:log_message, msg}, _from, {name, users, buffer}) do
     new_buffer =
     if Enum.count(buffer) > @max_buffer do
-      [msg|buffer]
-    else
       [msg|buffer] |> Enum.drop(-1)
+    else
+      [msg|buffer]
     end
     {:reply, :ok, {name, users, new_buffer}}
   end

@@ -28,9 +28,14 @@ use Mix.Config
 # here (which is why it is important to import them last).
 #
 #     import_config "#{Mix.env}.exs"
-config :kaguya,
-  server: "irc.server.com",
-  port: 6666,
-  bot_name: "kaguya",
-  modules: [],
-  channels: []
+
+# Example config:
+#
+# config :kaguya,
+#   server: "irc.server.com",
+#   port: 6666,
+#   bot_name: "kaguya",
+#   modules: [],
+#   channels: []
+
+  import_config "secret.exs"
