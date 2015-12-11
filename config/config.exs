@@ -29,8 +29,8 @@ use Mix.Config
 #
 #     import_config "#{Mix.env}.exs"
 config :kaguya,
-  server: "irc.animebytes.tv",
+  server: "irc.server.com",
   port: 6666,
   bot_name: "kaguya",
   modules: [],
-  channels: ["#mango", "##testing"]
+  channels: []
