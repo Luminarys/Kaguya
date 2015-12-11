@@ -135,6 +135,6 @@ defmodule Kaguya.Channel do
   """
   def get_buffer(chan, fun) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
-    :ok = GenServer.call(pid, {:get_buffer, fun})
+    GenServer.call(pid, {:get_buffer, fun})
   end
 end
