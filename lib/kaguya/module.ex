@@ -146,13 +146,13 @@ defmodule Kaguya.Module do
   """
   defmacro match(match_str, function, opts \\ []) do
     match_str
-    |> gen_match_func_call(function, opts)
+    |> gen_match_func_call(function)
     |> check_async(function, opts)
     |> check_unique(function, opts)
-    |> add_captures(match_str, function, opts)
+    |> add_captures(match_str, opts)
   end
 
-  defp gen_match_func_call(match_str, function, opts) do
+  defp gen_match_func_call(match_str, function) do
     if String.contains? match_str, [":", "~"] do
       quote do
         unquote(function)(var!(message), res)
@@ -200,7 +200,7 @@ defmodule Kaguya.Module do
     end
   end
 
-  defp add_captures(body, match_str, function, opts) do
+  defp add_captures(body, match_str, opts) do
     match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
     re = match_str |> extract_vars(match_group) |> Macro.escape
     if String.contains? match_str, [":", "~"] do
