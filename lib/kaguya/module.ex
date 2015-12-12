@@ -374,7 +374,7 @@ defmodule Kaguya.Module do
   def await_resp(match_str, chan, nick, timeout, match_group) do
     f =
     if String.contains? match_str, [":", "~"] do
-      re = match_str |> extract_vars(match_group) |> Macro.escape
+      re = match_str |> extract_vars(match_group)
       fn msg ->
         if (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
           case Regex.named_captures(re, msg.trailing) do

@@ -10,10 +10,10 @@ defmodule Kaguya.Core do
 
   @initial_state %{socket: nil}
 
-  @server Application.get_env(:kaguya, :server) |> String.to_atom
-  @port Application.get_env(:kaguya, :port)
-  @name Application.get_env(:kaguya, :bot_name)
-  @password Application.get_env(:kaguya, :password)
+  defp server, do: Application.get_env(:kaguya, :server) |> String.to_atom
+  defp port, do:  Application.get_env(:kaguya, :port)
+  defp name, do:  Application.get_env(:kaguya, :bot_name)
+  defp password, do:  Application.get_env(:kaguya, :password)
 
   def start_link(opts \\ []) do
     {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, opts)
@@ -22,7 +22,7 @@ defmodule Kaguya.Core do
   def init(:ok) do
     require Logger
     opts = [:binary, active: true]
-    {:ok, socket} = :gen_tcp.connect(@server, @port, opts)
+    {:ok, socket} = :gen_tcp.connect(server, port, opts)
     Logger.log :debug, "Started socket!"
     send self, :init
     {:ok, %{socket: socket}}
@@ -38,10 +38,10 @@ defmodule Kaguya.Core do
 
   def handle_info(:init, state) do
     Task.start fn ->
-      Kaguya.Util.sendUser(@name)
-      Kaguya.Util.sendNick(@name)
-      if @password != nil do
-        Kaguya.Util.sendPass(@password)
+      Kaguya.Util.sendUser(name)
+      Kaguya.Util.sendNick(name)
+      if password != nil do
+        Kaguya.Util.sendPass(password)
       end
     end
     {:noreply, state}
