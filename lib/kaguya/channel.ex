@@ -63,6 +63,7 @@ defmodule Kaguya.Channel do
       "~" -> :op
       "&" -> :op
       "@" -> :op
+      "%" -> :hop
       "+" -> :voice
       _ -> :normal
     end

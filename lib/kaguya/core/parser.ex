@@ -19,7 +19,7 @@ defmodule Kaguya.Core.Parser do
     if String.first(raw) == ":" do
       [user_info, message] = String.split(raw, " ", parts: 2)
       case String.split(user_info, "!") do
-        [server] -> 
+        [server] ->
           s = %User{nick: String.lstrip(server, ?:)}
           {s, message}
         [nick, info] ->
@@ -69,7 +69,7 @@ defmodule Kaguya.Core.Parser do
 
   defp add_trailing({raw, message}) do
     case message.trailing do
-      "" -> "#{raw}\r\n"
+      "" -> "#{String.rstrip raw}\r\n"
       trailing -> "#{raw}:#{trailing}\r\n"
     end
   end
