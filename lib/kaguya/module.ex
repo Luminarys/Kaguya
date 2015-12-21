@@ -85,7 +85,7 @@ defmodule Kaguya.Module do
     func_exec_ast = quote do: unquote(function)(var!(message))
 
     func_exec_ast
-    |> check_async(function, opts)
+    |> check_async(opts)
     |> check_unique(function, opts)
   end
 
@@ -109,7 +109,7 @@ defmodule Kaguya.Module do
     end
 
     func_exec_ast
-    |> check_async(function, opts)
+    |> check_async(opts)
     |> check_unique(function, opts)
     |> add_re_matcher(re, opts)
   end
@@ -158,13 +158,17 @@ defmodule Kaguya.Module do
   * async - Whether or not the matcher should be run synchronously or asynchronously.
   By default it is false, but should be set to true if await_resp is to be used.
   * uniq - When used with the async option, this ensures only one version of the matcher
-  can be running at any given time.
+  can be running at any given time. The uniq option can be either channel level or nick level,
+  specified with the option :chan or :nick.
+  * uniq_overridable - This is used to determine whether or not a unique match can be overriden
+  by a new match, or if the new match should exit and allow the previous match to continue running.
+  By default it is true, and new matches will kill off old matches.
   """
   defmacro match(match_str, function, opts \\ []) do
     match_str
     |> gen_match_func_call(function)
-    |> check_async(function, opts)
     |> check_unique(function, opts)
+    |> check_async(opts)
     |> add_captures(match_str, opts)
   end
 
@@ -180,15 +184,42 @@ defmodule Kaguya.Module do
     end
   end
 
-  defp check_async(body, function, opts) do
-    if Keyword.get(opts, :async, false) do
-      fun_string = Atom.to_string(function)
-      quote do
-        Task.start fn ->
+  defp check_unique(body, function, opts) do
+    fun_string = Atom.to_string(function)
+    if Keyword.has_key?(opts, :uniq) do
+      id_string =
+      case Keyword.get(opts, :uniq) do
+        true -> quote do: "#{unquote(fun_string)}_#{chan}_#{nick}"
+        :chan -> quote do: "#{unquote(fun_string)}_#{chan}"
+        :nick -> quote do: "#{unquote(fun_string)}_#{chan}_#{nick}"
+      end
+      if Keyword.get(opts, :uniq_overridable, true) do
+        quote do
           [chan] = var!(message).args
-          :ets.insert(@task_table, {"#{unquote(fun_string)}_#{chan}", self})
+          %{nick: nick} = var!(message).user
+
+          IO.puts unquote(id_string)
+          case :ets.lookup(@task_table, unquote(id_string)) do
+            [{_fun, pid}] ->
+              Process.exit(pid, :kill)
+              :ets.delete(@task_table, unquote(id_string))
+            [] -> nil
+          end
+          :ets.insert(@task_table, {unquote(id_string), self})
           unquote(body)
-          :ets.delete(@task_table, "#{unquote(fun_string)}_#{chan}")
+          :ets.delete(@task_table, unquote(id_string))
+        end
+      else
+        quote do
+          [chan] = var!(message).args
+          %{nick: nick} = var!(message).user
+           case :ets.lookup(@task_table, unquote(id_string)) do
+            [{_fun, pid}] -> nil
+            [] ->
+              :ets.insert(@task_table, {unquote(id_string), self})
+              unquote(body)
+              :ets.delete(@task_table, unquote(id_string))
+          end
         end
       end
     else
@@ -196,19 +227,12 @@ defmodule Kaguya.Module do
     end
   end
 
-  defp check_unique(body, function, opts) do
-    fun_string = Atom.to_string(function)
-    if Keyword.get(opts, :uniq, false) do
+  defp check_async(body, opts) do
+    if Keyword.get(opts, :async, false) do
       quote do
-        [chan] = var!(message).args
-        case :ets.lookup(@task_table, "#{unquote(fun_string)}_#{chan}") do
-          [{_fun, pid}] ->
-            Process.exit(pid, :kill)
-            :ets.delete(@task_table, "#{unquote(fun_string)}_#{chan}")
-          [] ->
-            nil
+        Task.start fn ->
+          unquote(body)
         end
-        unquote(body)
       end
     else
       body
