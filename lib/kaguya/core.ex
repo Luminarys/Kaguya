@@ -52,6 +52,10 @@ defmodule Kaguya.Core do
     {:noreply, state}
   end
 
+  def handle_info({:tcp_closed, _port}, state) do
+    {:noreply, state}
+  end
+
   defp handle_message(raw_message) do
     require Logger
     Logger.log :debug, "Received: #{raw_message}"

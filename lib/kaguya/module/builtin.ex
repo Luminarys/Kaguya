@@ -109,6 +109,7 @@ defmodule Kaguya.Module.Builtin do
       "+v" -> Kaguya.Channel.set_user(chan, "+#{nick}")
       "+h" -> Kaguya.Channel.set_user(chan, "%#{nick}")
       "+o" -> Kaguya.Channel.set_user(chan, "@#{nick}")
+      _ -> nil
     end
   end
 

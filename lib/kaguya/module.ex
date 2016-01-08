@@ -16,6 +16,11 @@ defmodule Kaguya.Module do
       @module_name module_name
       @task_table String.to_atom("#{@module_name}_tasks")
 
+      modules = Application.get_env(:kaguya, :modules)
+      if !Enum.member?(modules, __MODULE__) do
+        Application.put_env(:kaguya, :modules, [__MODULE__|modules], persistent: true)
+      end
+
       def start_link(opts \\ []) do
         {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, [])
       end
@@ -40,7 +45,7 @@ defmodule Kaguya.Module do
         try do
           handle_message({:msg, message}, state)
         rescue
-          e in FunctionClauseError ->
+          FunctionClauseError ->
             Logger.log :debug, "Message fell through for #{@module_name}!"
             {:noreply, state}
         end

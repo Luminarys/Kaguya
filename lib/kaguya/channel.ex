@@ -126,8 +126,13 @@ defmodule Kaguya.Channel do
   Convenience function to remove a nick from a channel.
   """
   def del_user(chan, nick) do
-    [{^chan, pid}] = :ets.lookup(:channels, chan)
-    :ok = GenServer.call(pid, {:del_user, nick})
+    case :ets.lookup(:channels, chan) do
+      [{^chan, pid}] -> :ok = GenServer.call(pid, {:del_user, nick})
+      _ ->
+        require Logger
+        Logger.log :warn, "Tried to delete unknown nick #{nick} from channel #{chan}"
+        :ok
+    end
   end
 
   @doc """

@@ -12,8 +12,11 @@ defmodule Kaguya.ModuleSupervisor do
   end
 
   def init(:ok) do
-    modules = [Kaguya.Module.Builtin|Application.get_env(:kaguya, :modules)]
-    children = for module <- modules, do: worker(module, [])
+    # modules = [Kaguya.Module.Builtin|Application.get_env(:kaguya, :modules)]
+    modules = Application.get_env(:kaguya, :modules)
+    children = for module <- modules do
+      worker(module, [])
+    end
     Logger.log :debug, "Starting modules!"
     supervise(children, strategy: :one_for_one)
   end
