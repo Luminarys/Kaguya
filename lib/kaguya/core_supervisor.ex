@@ -19,11 +19,3 @@ defmodule Kaguya.CoreSupervisor do
     supervise(children, strategy: :one_for_one)
   end
 end
-
-defmodule Kaguya.Module.Builtin2 do
-  use Kaguya.Module, "builtin2"
-
-  handle "PRIVMSG" do
-    IO.puts "PM"
-  end
-end

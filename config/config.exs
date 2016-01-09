@@ -37,5 +37,4 @@ use Mix.Config
 #   bot_name: "kaguya",
 #   modules: [],
 #   channels: []
-
-  import_config "secret.exs"
+import_config "secret.exs"
