@@ -15,6 +15,10 @@ defmodule Kaguya.Module do
 
       @module_name module_name
       @task_table String.to_atom("#{@module_name}_tasks")
+      @before_compile Kaguya.Module
+
+      Module.register_attribute __MODULE__,
+        :match_docs, accumulate: true, persist: true
 
       def start_link(opts \\ []) do
         {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, [])
@@ -48,6 +52,42 @@ defmodule Kaguya.Module do
     end
   end
 
+  defmacro __before_compile__(env) do
+    help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
+    help_search = help_cmd <> " ~search_term"
+
+    add_docs(help_search, env.module, [doc: "Displays all commands which match the supplied prefix."])
+    add_docs(help_cmd, env.module, [doc: "Displays this message."])
+
+    quote do
+      def print_help(var!(message), %{"search_term" => term}) do
+        import Kaguya.Util
+        @match_docs
+        |> Enum.filter(fn match_doc -> String.starts_with?(match_doc, "#{yellow}#{term}") end)
+        |> Enum.map(fn match_doc -> reply_notice(match_doc) end)
+      end
+
+      def print_help(var!(message)) do
+        Enum.map(@match_docs, fn match_doc -> reply_notice(match_doc) end)
+      end
+    end
+  end
+
+  def generate_privmsg_handler(body \\ nil) do
+    help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
+    help_search = help_cmd <> " ~search_term"
+    quote do
+      def handle_message({:msg, %{command: "PRIVMSG"} = var!(message)}, state) do
+        unquote(body)
+
+        match unquote(help_cmd), :print_help, nodoc: true
+        match unquote(help_search), :print_help, nodoc: true
+
+        {:noreply, state}
+      end
+    end
+  end
+
   @doc """
   Defines a group of matchers which will handle all messages of the corresponding
   IRC command.
@@ -64,10 +104,14 @@ defmodule Kaguya.Module do
   will be matched against `:pingHandler` and `:pingHandler2`
   """
   defmacro handle(command, do: body) do
-    quote do
-      def handle_message({:msg, %{command: unquote(command)} = var!(message)}, state) do
-        unquote(body)
-        {:noreply, state}
+    if command == "PRIVMSG" do
+      generate_privmsg_handler(body)
+    else
+      quote do
+        def handle_message({:msg, %{command: unquote(command)} = var!(message)}, state) do
+          unquote(body)
+          {:noreply, state}
+        end
       end
     end
   end
@@ -165,11 +209,56 @@ defmodule Kaguya.Module do
   By default it is true, and new matches will kill off old matches.
   """
   defmacro match(match_str, function, opts \\ []) do
+    add_docs(match_str, __CALLER__.module, opts)
     match_str
     |> gen_match_func_call(function)
     |> check_unique(function, opts)
     |> check_async(opts)
     |> add_captures(match_str, opts)
+  end
+
+  defp add_docs(match_str, module, opts) do
+    if !Keyword.has_key?(opts, :nodoc) do
+      doc_string = make_docstring(match_str, opts)
+      Module.put_attribute(module, :match_docs, doc_string)
+    end
+  end
+
+  defp make_docstring(match_str, opts) do
+    import Kaguya.Util
+
+    desc = Keyword.get(opts, :doc, "")
+
+    command =
+    String.split(match_str)
+    |> Enum.map(fn part ->
+      case String.first(part) do
+        ":" ->
+          var_name = String.lstrip(part, ?:)
+          "<#{var_name}>"
+        "~" ->
+          var_name = String.lstrip(part, ?~)
+          "<#{var_name}...>"
+        _ -> part
+      end
+    end)
+    |> Enum.join(" ")
+
+    var_count =
+    String.split(match_str)
+    |> Enum.reduce(0, fn part, acc ->
+      case String.first(part) do
+        ":" -> acc + 1
+        _ -> acc
+      end
+    end)
+
+    if var_count > 0 do
+      match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
+      "#{yellow}#{command} #{gray}(vars matching #{match_group}) #{clear}#{desc}"
+    else
+      "#{yellow}#{command} #{clear}#{desc}"
+    end
   end
 
   defp gen_match_func_call(match_str, function) do
@@ -342,6 +431,28 @@ defmodule Kaguya.Module do
     quote do
       [chan] = var!(message).args
       Kaguya.Util.sendPM(unquote(response), chan)
+    end
+  end
+
+  @doc """
+  Sends a response to the sender of the PRIVMSG with a given message via a private message.
+  Example: `reply_priv "Hi"`
+  """
+  defmacro reply_priv(response) do
+    quote do
+      %{nick: nick} = var!(message).user
+      Kaguya.Util.sendPM(unquote(response), nick)
+    end
+  end
+
+  @doc """
+  Sends a response to the sender of the PRIVMSG with a given message via a private message.
+  Example: `reply_priv "Hi"`
+  """
+  defmacro reply_notice(response) do
+    quote do
+      %{nick: nick} = var!(message).user
+      Kaguya.Util.sendNotice(unquote(response), nick)
     end
   end
 

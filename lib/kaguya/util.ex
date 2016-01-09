@@ -39,6 +39,14 @@ defmodule Kaguya.Util do
   end
 
   @doc """
+  Sends a NOTICE to a recipient on the IRC server.
+  """
+  def sendNotice(message, recipient) do
+    m = %Kaguya.Core.Message{command: "NOTICE", args: [recipient], trailing: message} 
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
   Sends the IRC server the JOIN command.
   """
   def joinChan(channel) do
