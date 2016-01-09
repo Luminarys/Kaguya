@@ -56,8 +56,10 @@ defmodule Kaguya.Module do
     help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
     help_search = help_cmd <> " ~search_term"
 
-    add_docs(help_search, env.module, [doc: "Displays all commands which match the supplied prefix."])
-    add_docs(help_cmd, env.module, [doc: "Displays this message."])
+    if env.module == Kaguya.Module.Builtin do
+      add_docs(help_search, env.module, [doc: "Displays all commands which match the supplied prefix."])
+      add_docs(help_cmd, env.module, [doc: "Displays this message."])
+    end
 
     quote do
       def print_help(var!(message), %{"search_term" => term}) do
