@@ -63,7 +63,7 @@ defmodule Kaguya.Core do
       message = Kaguya.Core.Parser.parse_raw_to_message(raw_message)
       for member <- :pg2.get_members(:modules), do: GenServer.cast(member, {:msg, message})
     rescue
-      e in MatchError -> Logger.log :warn, "Bad Message: #{raw_message}"
+      MatchError -> Logger.log :warn, "Bad Message: #{raw_message}"
     end
   end
 end

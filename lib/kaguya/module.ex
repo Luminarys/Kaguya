@@ -442,7 +442,7 @@ defmodule Kaguya.Module do
   """
   defmacro reply_priv(response) do
     quote do
-      recip = Kaguya.Module.get_recip(var!(message))
+      recip = Map.get(var!(message.user), :nick)
       Kaguya.Util.sendPM(unquote(response), recip)
     end
   end
@@ -454,6 +454,17 @@ defmodule Kaguya.Module do
   defmacro reply_notice(response) do
     quote do
       recip = Kaguya.Module.get_recip(var!(message))
+      Kaguya.Util.sendNotice(unquote(response), recip)
+    end
+  end
+
+  @doc """
+  Sends a response to the user who sent the PRIVMSG with a given message via a private message.
+  Example: `reply_priv "Hi"`
+  """
+  defmacro reply_priv_notice(response) do
+    quote do
+      recip = Map.get(var!(message.user), :nick)
       Kaguya.Util.sendNotice(unquote(response), recip)
     end
   end
