@@ -67,11 +67,6 @@ defmodule Kaguya.Module.Builtin do
   handle "PRIVMSG" do
     GenServer.cast(self, {:check_callbacks, message})
     match_all :logMessage
-    match "!ping", :pongHandler
-  end
-
-  def pongHandler(message) do
-    reply "pong!"
   end
 
   @doc """
