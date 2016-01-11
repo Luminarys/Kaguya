@@ -431,8 +431,8 @@ defmodule Kaguya.Module do
   """
   defmacro reply(response) do
     quote do
-      [chan] = var!(message).args
-      Kaguya.Util.sendPM(unquote(response), chan)
+      recip = get_recip(var!(message))
+      Kaguya.Util.sendPM(unquote(response), recip)
     end
   end
 
@@ -442,8 +442,8 @@ defmodule Kaguya.Module do
   """
   defmacro reply_priv(response) do
     quote do
-      %{nick: nick} = var!(message).user
-      Kaguya.Util.sendPM(unquote(response), nick)
+      recip = Kaguya.Module.get_recip(var!(message))
+      Kaguya.Util.sendPM(unquote(response), recip)
     end
   end
 
@@ -453,8 +453,21 @@ defmodule Kaguya.Module do
   """
   defmacro reply_notice(response) do
     quote do
-      %{nick: nick} = var!(message).user
-      Kaguya.Util.sendNotice(unquote(response), nick)
+      recip = Kaguya.Module.get_recip(var!(message))
+      Kaguya.Util.sendNotice(unquote(response), recip)
+    end
+  end
+
+  @doc """
+  Determines whether or not a response should be sent back to a channel
+  or if the recipient sent the message in a PM
+  """
+  def get_recip(message) do
+    [chan] = message.args
+    bot = Application.get_env(:kaguya, :bot_name)
+    case chan do
+      ^bot -> Map.get(message.user, :nick)
+      _ -> chan
     end
   end
 
