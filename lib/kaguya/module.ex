@@ -66,11 +66,11 @@ defmodule Kaguya.Module do
         import Kaguya.Util
         @match_docs
         |> Enum.filter(fn match_doc -> String.starts_with?(match_doc, "#{yellow}#{term}") end)
-        |> Enum.map(fn match_doc -> reply_notice(match_doc) end)
+        |> Enum.map(fn match_doc -> reply_priv_notice(match_doc) end)
       end
 
       def print_help(var!(message)) do
-        Enum.map(@match_docs, fn match_doc -> reply_notice(match_doc) end)
+        Enum.map(@match_docs, fn match_doc -> reply_priv_notice(match_doc) end)
       end
     end
   end
@@ -442,7 +442,7 @@ defmodule Kaguya.Module do
   """
   defmacro reply_priv(response) do
     quote do
-      recip = Map.get(var!(message.user), :nick)
+      recip = Map.get(var!(message).user, :nick)
       Kaguya.Util.sendPM(unquote(response), recip)
     end
   end
@@ -464,7 +464,7 @@ defmodule Kaguya.Module do
   """
   defmacro reply_priv_notice(response) do
     quote do
-      recip = Map.get(var!(message.user), :nick)
+      recip = Map.get(var!(message).user, :nick)
       Kaguya.Util.sendNotice(unquote(response), recip)
     end
   end
