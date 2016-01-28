@@ -49,6 +49,10 @@ defmodule Kaguya.Module do
             {:noreply, state}
         end
       end
+
+      # Used to scan for valid modules on start
+      defmodule Kaguya_Module do
+      end
     end
   end
 
@@ -148,10 +152,11 @@ defmodule Kaguya.Module do
   map on successful match. By default this option is false.
   """
   defmacro match_re(re, function, opts \\ []) do
+    func_exec_ast =
     if Keyword.get(opts, :capture, false) do
-      func_exec_ast = quote do: unquote(function)(var!(message), res)
+      quote do: unquote(function)(var!(message), res)
     else
-      func_exec_ast = quote do: unquote(function)(var!(message))
+      quote do: unquote(function)(var!(message))
     end
 
     func_exec_ast

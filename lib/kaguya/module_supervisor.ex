@@ -12,11 +12,30 @@ defmodule Kaguya.ModuleSupervisor do
   end
 
   def init(:ok) do
-    modules = [Kaguya.Module.Builtin|Application.get_env(:kaguya, :modules)]
-    children = for module <- modules do
-      worker(module, [])
-    end
     Logger.log :debug, "Starting modules!"
-    supervise(children, strategy: :one_for_one)
+    load_modules()
+    |> Enum.map(fn module -> worker(module, []) end)
+    |> supervise(strategy: :one_for_one)
+  end
+
+  defp load_modules do
+    :code.get_path
+    |> Enum.reduce([], fn path, modules ->
+      {:ok, files} = :erl_prim_loader.list_dir(path |> to_char_list)
+      [Enum.reduce(files, [], &match_module/2)|modules]
+    end)
+    |> List.flatten
+  end
+
+  @module_re ~r/(?<module>.*).Kaguya_Module.beam$/
+
+  defp match_module(file, modules) do
+    captures = Regex.named_captures(@module_re,  List.to_string(file))
+    case captures do
+      %{"module" => mod_name} ->
+        mod = String.to_atom(mod_name)
+        [mod|modules]
+      nil -> modules
+    end
   end
 end

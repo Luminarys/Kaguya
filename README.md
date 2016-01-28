@@ -26,7 +26,6 @@
           server: "my.irc.server",
           port: 6666,
           bot_name: "kaguya",
-          modules: [],
           channels: ["#kaguya"]
     ```
 
@@ -53,14 +52,7 @@ the bot echo the message the user gave. The `~` indicates a
 trailing match in which all characters following `!say ` will be matched
 against.
 
-Once you've written a module you need to specify that it be loaded.
-You can do this by modifying the config parameter `modules` to include
-the name of the module you wrote. In the config would look like:
-```elixir
-  config :kaguya,
-    ...
-    modules: [Kaguya.Module.Simple, ...],
-    ...
-```
+Just by having your module use Kaguya.Module, it will automatically be added
+to the module list which receives all IRC messages and is launched at start time.
 
 You can find a more full featured example in `example/basic.ex`.
