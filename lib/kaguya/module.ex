@@ -191,6 +191,7 @@ defmodule Kaguya.Module do
   ```
   handle "PRIVMSG" do
     match "!rand :low :high", :genRand, match_group: "[0-9]+"
+    match ["!say ~msg", "!s ~msg"], :sayMessage
   end
   ```
 
@@ -198,6 +199,7 @@ defmodule Kaguya.Module do
   when a user sends a message to a channel saying something like
   `!rand 0 10`. If both parameters are strings, the genRand function
   will be passed the messages, and a map which will look like `%{low: 0, high: 10}`.
+  Additionally the usage of a list allows for command aliases, in the second match.
 
   Available match string params are `:param` and `~param`. The former
   will match a specific space separated parameter, whereas the latter matches
@@ -215,8 +217,18 @@ defmodule Kaguya.Module do
   by a new match, or if the new match should exit and allow the previous match to continue running.
   By default it is true, and new matches will kill off old matches.
   """
-  defmacro match(match_str, function, opts \\ []) do
-    add_docs(match_str, __CALLER__.module, opts)
+  defmacro match(match, function, opts \\ [])
+
+  defmacro match(match_str, function, opts) when is_bitstring(match_str) do
+    handle_match(match_str, function, opts, __CALLER__.module)
+  end
+
+  defmacro match(match_list, function, opts) when is_list(match_list) do
+    for match <- match_list, do: handle_match(match, function, opts, __CALLER__.module)
+  end
+
+  defp handle_match(match_str, function, opts, module) do
+    add_docs(match_str, module, opts)
     match_str
     |> gen_match_func_call(function)
     |> check_unique(function, opts)

@@ -37,8 +37,8 @@ defmodule Kaguya.Module.Simple do
   use Kaguya.Module, "simple"
 
   handle "PRIVMSG" do
-    match "!ping", :pingHandler
     match "!say ~message", :sayHandler
+    match ["!ping", "!p"], :pingHandler
   end
 
   def pingHandler(message), do: reply "pong!"
@@ -46,8 +46,9 @@ defmodule Kaguya.Module.Simple do
 end
 ```
 
-This module defines two commands to be handled. `!ping`, to which the bot
-will respond `pong!`, and `!say [some message]` which will have
+This module defines three commands to be handled. `!ping` and `!p` are
+aliased to the same handler, which has the bot respond `pong!`,
+and `!say [some message]` will have
 the bot echo the message the user gave. The `~` indicates a
 trailing match in which all characters following `!say ` will be matched
 against.
