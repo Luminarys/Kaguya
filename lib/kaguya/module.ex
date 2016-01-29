@@ -38,18 +38,6 @@ defmodule Kaguya.Module do
 
       defoverridable init: 1
 
-      def handle_cast({:msg, message}, state) do
-        require Logger
-        Logger.log :debug, "Running module #{@module_name}'s dispatcher!"
-        try do
-          handle_message({:msg, message}, state)
-        rescue
-          FunctionClauseError ->
-            Logger.log :debug, "Message fell through for #{@module_name}!"
-            {:noreply, state}
-        end
-      end
-
       # Used to scan for valid modules on start
       defmodule Kaguya_Module do
       end
@@ -66,15 +54,17 @@ defmodule Kaguya.Module do
     end
 
     quote do
+      def handle_cast({:msg, _message}, state), do: {:noreply, state}
+
       def print_help(var!(message), %{"search_term" => term}) do
         import Kaguya.Util
         @match_docs
         |> Enum.filter(fn match_doc -> String.starts_with?(match_doc, "#{yellow}#{term}") end)
-        |> Enum.map(fn match_doc -> reply_priv_notice(match_doc) end)
+        |> Enum.map(&reply_priv_notice/1)
       end
 
       def print_help(var!(message)) do
-        Enum.map(@match_docs, fn match_doc -> reply_priv_notice(match_doc) end)
+        Enum.map(@match_docs, &reply_priv_notice/1)
       end
     end
   end
@@ -83,7 +73,7 @@ defmodule Kaguya.Module do
     help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
     help_search = help_cmd <> " ~search_term"
     quote do
-      def handle_message({:msg, %{command: "PRIVMSG"} = var!(message)}, state) do
+      def handle_cast({:msg, %{command: "PRIVMSG"} = var!(message)}, state) do
         unquote(body)
 
         match unquote(help_cmd), :print_help, nodoc: true
@@ -109,15 +99,13 @@ defmodule Kaguya.Module do
   In the example, all IRC messages which have the PING command
   will be matched against `:pingHandler` and `:pingHandler2`
   """
+  defmacro handle("PRIVMSG", do: body), do: generate_privmsg_handler(body)
+
   defmacro handle(command, do: body) do
-    if command == "PRIVMSG" do
-      generate_privmsg_handler(body)
-    else
-      quote do
-        def handle_message({:msg, %{command: unquote(command)} = var!(message)}, state) do
-          unquote(body)
-          {:noreply, state}
-        end
+    quote do
+      def handle_cast({:msg, %{command: unquote(command)} = var!(message)}, state) do
+        unquote(body)
+        {:noreply, state}
       end
     end
   end
@@ -133,10 +121,12 @@ defmodule Kaguya.Module do
   """
   defmacro match_all(function, opts \\ []) do
     func_exec_ast = quote do: unquote(function)(var!(message))
+    uniq? = Keyword.get(opts, :uniq, false)
+    overrideable? = Keyword.get(opts, :overrideable, false)
 
     func_exec_ast
-    |> check_async(opts)
-    |> check_unique(function, opts)
+    |> check_async(Keyword.get(opts, :async, false))
+    |> check_unique(function, uniq?, overrideable?)
   end
 
   @doc """
@@ -159,25 +149,30 @@ defmodule Kaguya.Module do
       quote do: unquote(function)(var!(message))
     end
 
+    uniq? = Keyword.get(opts, :uniq, false)
+    overrideable? = Keyword.get(opts, :overrideable, false)
+
     func_exec_ast
-    |> check_async(opts)
-    |> check_unique(function, opts)
-    |> add_re_matcher(re, opts)
+    |> check_async(Keyword.get(opts, :async, false))
+    |> check_unique(function, uniq?, overrideable?)
+    |> add_re_matcher(re, Keyword.get(opts, :capture, false))
   end
 
-  defp add_re_matcher(body, re, opts) do
-    if Keyword.get(opts, :capture, false) do
-      quote do
-        case Regex.named_captures(unquote(re), var!(message).trailing) do
-          nil -> :ok
-          res -> unquote(body)
-        end
+  defp add_re_matcher(body, re, use_named_capture)
+
+  defp add_re_matcher(body, re, true) do
+    quote do
+      case Regex.named_captures(unquote(re), var!(message).trailing) do
+        nil -> :ok
+        res -> unquote(body)
       end
-    else
-      quote do
-        if Regex.match?(unquote(re), var!(message).trailing) do
-          unquote(body)
-        end
+    end
+  end
+
+  defp add_re_matcher(body, re, false) do
+    quote do
+      if Regex.match?(unquote(re), var!(message).trailing) do
+        unquote(body)
       end
     end
   end
@@ -229,11 +224,17 @@ defmodule Kaguya.Module do
 
   defp handle_match(match_str, function, opts, module) do
     add_docs(match_str, module, opts)
+
+    uniq? = Keyword.get(opts, :uniq, false)
+    overrideable? = Keyword.get(opts, :overrideable, false)
+    async? = Keyword.get(opts, :async, false)
+    match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]")
+
     match_str
     |> gen_match_func_call(function)
-    |> check_unique(function, opts)
-    |> check_async(opts)
-    |> add_captures(match_str, opts)
+    |> check_unique(function, uniq?, overrideable?)
+    |> check_async(async?)
+    |> add_captures(match_str, match_group)
   end
 
   defp add_docs(match_str, module, opts) do
@@ -248,7 +249,19 @@ defmodule Kaguya.Module do
 
     desc = Keyword.get(opts, :doc, "")
 
-    command =
+    command = get_doc_command_string(match_str)
+
+    var_count = get_match_var_num(match_str)
+
+    if var_count > 0 do
+      match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
+      "#{yellow}#{command} #{gray}(vars matching #{match_group}) #{clear}#{desc}"
+    else
+      "#{yellow}#{command} #{clear}#{desc}"
+    end
+  end
+
+  defp get_doc_command_string(match_str) do
     String.split(match_str)
     |> Enum.map(fn part ->
       case String.first(part) do
@@ -262,8 +275,9 @@ defmodule Kaguya.Module do
       end
     end)
     |> Enum.join(" ")
+  end
 
-    var_count =
+  defp get_match_var_num(match_str) do
     String.split(match_str)
     |> Enum.reduce(0, fn part, acc ->
       case String.first(part) do
@@ -271,13 +285,6 @@ defmodule Kaguya.Module do
         _ -> acc
       end
     end)
-
-    if var_count > 0 do
-      match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
-      "#{yellow}#{command} #{gray}(vars matching #{match_group}) #{clear}#{desc}"
-    else
-      "#{yellow}#{command} #{clear}#{desc}"
-    end
   end
 
   defp gen_match_func_call(match_str, function) do
@@ -292,63 +299,71 @@ defmodule Kaguya.Module do
     end
   end
 
-  defp check_unique(body, function, opts) do
-    fun_string = Atom.to_string(function)
-    if Keyword.has_key?(opts, :uniq) do
-      id_string =
-      case Keyword.get(opts, :uniq) do
-        true -> quote do: "#{unquote(fun_string)}_#{chan}_#{nick}"
-        :chan -> quote do: "#{unquote(fun_string)}_#{chan}"
-        :nick -> quote do: "#{unquote(fun_string)}_#{chan}_#{nick}"
-      end
-      if Keyword.get(opts, :uniq_overridable, true) do
-        quote do
-          [chan] = var!(message).args
-          %{nick: nick} = var!(message).user
+  defp check_unique(body, function, use_uniq?, overrideable?)
 
-          IO.puts unquote(id_string)
-          case :ets.lookup(@task_table, unquote(id_string)) do
-            [{_fun, pid}] ->
-              Process.exit(pid, :kill)
-              :ets.delete(@task_table, unquote(id_string))
-            [] -> nil
-          end
+  defp check_unique(body, _function, false, _overrideable), do: body
+
+  defp check_unique(body, function, uniq_type, overrideable?) do
+    id_string = get_unique_table_id(function, uniq_type)
+    create_unique_match(body, id_string, overrideable?)
+  end
+
+  defp get_unique_table_id(function, type) do
+    fun_string = Atom.to_string(function)
+    case type do
+      true -> quote do: "#{unquote(fun_string)}_#{chan}_#{nick}"
+      :chan -> quote do: "#{unquote(fun_string)}_#{chan}"
+      :nick -> quote do: "#{unquote(fun_string)}_#{chan}_#{nick}"
+    end
+  end
+
+  defp create_unique_match(body, id_string, overrideable?)
+
+  defp create_unique_match(body, id_string, true) do
+    quote do
+      [chan] = var!(message).args
+      %{nick: nick} = var!(message).user
+
+      IO.puts unquote(id_string)
+      case :ets.lookup(@task_table, unquote(id_string)) do
+        [{_fun, pid}] ->
+          Process.exit(pid, :kill)
+          :ets.delete(@task_table, unquote(id_string))
+        [] -> nil
+      end
+      :ets.insert(@task_table, {unquote(id_string), self})
+      unquote(body)
+      :ets.delete(@task_table, unquote(id_string))
+    end
+  end
+
+  defp create_unique_match(body, id_string, false) do
+    quote do
+      [chan] = var!(message).args
+      %{nick: nick} = var!(message).user
+       case :ets.lookup(@task_table, unquote(id_string)) do
+        [{_fun, pid}] -> nil
+        [] ->
           :ets.insert(@task_table, {unquote(id_string), self})
           unquote(body)
           :ets.delete(@task_table, unquote(id_string))
-        end
-      else
-        quote do
-          [chan] = var!(message).args
-          %{nick: nick} = var!(message).user
-           case :ets.lookup(@task_table, unquote(id_string)) do
-            [{_fun, pid}] -> nil
-            [] ->
-              :ets.insert(@task_table, {unquote(id_string), self})
-              unquote(body)
-              :ets.delete(@task_table, unquote(id_string))
-          end
-        end
       end
-    else
-      body
     end
   end
 
-  defp check_async(body, opts) do
-    if Keyword.get(opts, :async, false) do
-      quote do
-        Task.start fn ->
-          unquote(body)
-        end
+  defp check_async(body, async?)
+
+  defp check_async(body, true) do
+    quote do
+      Task.start fn ->
+        unquote(body)
       end
-    else
-      body
     end
   end
 
-  defp add_captures(body, match_str, opts) do
-    match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
+  defp check_async(body, false), do: body
+
+  defp add_captures(body, match_str, match_group) do
     re = match_str |> extract_vars(match_group) |> Macro.escape
     if String.contains? match_str, [":", "~"] do
       quote do
@@ -550,34 +565,40 @@ defmodule Kaguya.Module do
   most of the time, but the function can be used if necessary.
   """
   def await_resp(match_str, chan, nick, timeout, match_group) do
-    f =
-    if String.contains? match_str, [":", "~"] do
-      re = match_str |> extract_vars(match_group)
-      fn msg ->
-        if (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
-          case Regex.named_captures(re, msg.trailing) do
-            nil -> false
-            res -> {true, {msg, res}}
-          end
-        else
-          false
-        end
-      end
-    else
-      fn msg ->
-        if match_str == msg.trailing and (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
-          {true, {msg, nil}}
-        else
-          false
-        end
-      end
-    end
+    has_vars? = String.contains? match_str, [":", "~"]
+    match_fun = get_match_fun(match_str, chan, nick, match_group, has_vars?)
 
     try do
-      GenServer.call(Kaguya.Module.Builtin, {:add_callback, f}, timeout)
+      GenServer.call(Kaguya.Module.Builtin, {:add_callback, match_fun}, timeout)
     catch
       :exit, _ -> GenServer.cast(Kaguya.Module.Builtin, {:remove_callback, self})
       {nil, nil}
+    end
+  end
+
+  defp get_match_fun(match_str, chan, nick, match_group, has_vars?)
+
+  defp get_match_fun(match_str, chan, nick, match_group, true) do
+    re = match_str |> extract_vars(match_group)
+    fn msg ->
+      if (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
+        case Regex.named_captures(re, msg.trailing) do
+          nil -> false
+          res -> {true, {msg, res}}
+        end
+      else
+        false
+      end
+    end
+  end
+
+  defp get_match_fun(match_str, chan, nick, _match_group, false) do
+    fn msg ->
+      if match_str == msg.trailing and (msg.args == [chan] or chan == :any) and (msg.user.nick == nick or nick == :any) do
+        {true, {msg, nil}}
+      else
+        false
+      end
     end
   end
 end

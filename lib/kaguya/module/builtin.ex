@@ -104,6 +104,8 @@ defmodule Kaguya.Module.Builtin do
   @doc """
   Changes a user's mode internally in a channel.
   """
+  def changeUserMode(%{args: [_chan]}), do: nil
+
   def changeUserMode(%{args: [chan, mode, nick]}) do
     case mode do
       "+v" -> Kaguya.Channel.set_user(chan, "+#{nick}")
