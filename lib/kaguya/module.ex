@@ -324,7 +324,6 @@ defmodule Kaguya.Module do
       [chan] = var!(message).args
       %{nick: nick} = var!(message).user
 
-      IO.puts unquote(id_string)
       case :ets.lookup(@task_table, unquote(id_string)) do
         [{_fun, pid}] ->
           Process.exit(pid, :kill)
@@ -364,19 +363,27 @@ defmodule Kaguya.Module do
   defp check_async(body, false), do: body
 
   defp add_captures(body, match_str, match_group) do
-    re = match_str |> extract_vars(match_group) |> Macro.escape
     if String.contains? match_str, [":", "~"] do
-      quote do
-        case Regex.named_captures(unquote(re), var!(message).trailing) do
-          nil -> :ok
-          res -> unquote(body)
-        end
-      end
+      add_regex_capture(match_str, match_group, body)
     else
-      quote do
-        if var!(message).trailing == unquote(match_str) do
-          unquote(body)
-        end
+      add_string_capture(match_str, body)
+    end
+  end
+
+  defp add_regex_capture(match_str, match_group, body) do
+    re = match_str |> extract_vars(match_group) |> Macro.escape
+    quote do
+      case Regex.named_captures(unquote(re), var!(message).trailing) do
+        nil -> :ok
+        res -> unquote(body)
+      end
+    end
+  end
+
+  defp add_string_capture(match_str, body) do
+    quote do
+      if var!(message).trailing == unquote(match_str) do
+        unquote(body)
       end
     end
   end
@@ -415,13 +422,13 @@ defmodule Kaguya.Module do
   function will be given a message, and should return either
   true or false.
   """
+  defmacro validator(name, do: body) when is_atom(body) do
+    create_validator(name, [body])
+  end
+
   defmacro validator(name, do: body) do
-    if is_atom(body) do
-      create_validator(name, [body])
-    else
-      {:__block__, [], funcs} = body
-      create_validator(name, funcs)
-    end
+    {:__block__, [], funcs} = body
+    create_validator(name, funcs)
   end
 
   defp create_validator(name, funcs) do
