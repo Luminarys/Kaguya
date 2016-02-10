@@ -17,8 +17,7 @@ defmodule Kaguya.Module do
       @task_table String.to_atom("#{@module_name}_tasks")
       @before_compile Kaguya.Module
 
-      Module.register_attribute __MODULE__,
-        :match_docs, accumulate: true, persist: true
+      init_attrs()
 
       def start_link(opts \\ []) do
         {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, [])
@@ -69,7 +68,18 @@ defmodule Kaguya.Module do
     end
   end
 
-  def generate_privmsg_handler(body \\ nil) do
+  defmacro init_attrs do
+    Module.register_attribute __CALLER__.module,
+      :match_docs, accumulate: true, persist: true
+
+    Module.register_attribute __CALLER__.module,
+      :handler_impls, accumulate: true, persist: true
+
+    Module.register_attribute __CALLER__.module,
+      :handlers, accumulate: true, persist: true
+  end
+
+  defp generate_privmsg_handler(body) do
     help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
     help_search = help_cmd <> " ~search_term"
     quote do
@@ -120,6 +130,7 @@ defmodule Kaguya.Module do
   Should be used with async: true.
   """
   defmacro match_all(function, opts \\ []) do
+    add_handler_impl(function, __CALLER__.module, [])
     func_exec_ast = quote do: unquote(function)(var!(message))
     uniq? = Keyword.get(opts, :uniq, false)
     overrideable? = Keyword.get(opts, :overrideable, false)
@@ -142,6 +153,8 @@ defmodule Kaguya.Module do
   map on successful match. By default this option is false.
   """
   defmacro match_re(re, function, opts \\ []) do
+    add_handler_impl(function, __CALLER__.module, [])
+
     func_exec_ast =
     if Keyword.get(opts, :capture, false) do
       quote do: unquote(function)(var!(message), res)
@@ -215,15 +228,16 @@ defmodule Kaguya.Module do
   defmacro match(match, function, opts \\ [])
 
   defmacro match(match_str, function, opts) when is_bitstring(match_str) do
-    handle_match(match_str, function, opts, __CALLER__.module)
+    make_match(match_str, function, opts, __CALLER__.module)
   end
 
   defmacro match(match_list, function, opts) when is_list(match_list) do
-    for match <- match_list, do: handle_match(match, function, opts, __CALLER__.module)
+    for match <- match_list, do: make_match(match, function, opts, __CALLER__.module)
   end
 
-  defp handle_match(match_str, function, opts, module) do
+  defp make_match(match_str, function, opts, module) do
     add_docs(match_str, module, opts)
+    add_handler_impl(function, module, get_var_list(match_str))
 
     uniq? = Keyword.get(opts, :uniq, false)
     overrideable? = Keyword.get(opts, :overrideable, false)
@@ -275,6 +289,21 @@ defmodule Kaguya.Module do
       end
     end)
     |> Enum.join(" ")
+  end
+
+  defp get_var_list(match_str) do
+    String.split(match_str)
+    |> Enum.reduce([], fn(part, acc) ->
+      case String.first(part) do
+        ":" -> [String.lstrip(part, ?:)|acc]
+        "~" -> [String.lstrip(part, ?~)|acc]
+        _ -> acc
+      end
+    end)
+  end
+
+  defp add_handler_impl(name, module, vars) do
+    Module.put_attribute(module, :handlers, {name, vars})
   end
 
   defp get_match_var_num(match_str) do
@@ -400,6 +429,31 @@ defmodule Kaguya.Module do
       ":" <> param -> "(?<#{param}>#{match_group})"
       "~" <> param -> "(?<#{param}>.+)"
       text -> Regex.escape(text)
+    end
+  end
+
+  defmacro defh({name, _line, nil}, do: body) do
+    args = [quote do: var!(message)]
+    make_defh_func(name, args, body)
+  end
+
+  defmacro defh({name, _line, [msg_arg]}, do: body) do
+    args = [quote do: var!(message) = unquote(msg_arg)]
+    make_defh_func(name, args, body)
+  end
+
+  defmacro defh({name, _line, [msg_arg|map_arg]}, do: body) do
+    args = [quote(do: var!(message) = unquote(msg_arg)), map_arg]
+    make_defh_func(name, args, body)
+  end
+
+  defp make_defh_func(name, args, body) do
+    quote do
+      def unquote(name)(unquote_splicing(args)) do
+        unquote(body)
+        # Suppress unused message warning
+        var!(message)
+      end
     end
   end
 

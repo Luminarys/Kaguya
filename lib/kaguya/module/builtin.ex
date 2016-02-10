@@ -72,7 +72,7 @@ defmodule Kaguya.Module.Builtin do
   @doc """
   Sends a PONG response to the PING command.
   """
-  def pingHandler(message) do
+  defh pingHandler do
     m = %{message | command: "PONG"}
     :ok = GenServer.call(Kaguya.Core, {:send, m})
   end
@@ -81,14 +81,14 @@ defmodule Kaguya.Module.Builtin do
   Resends the nick command with an appended "_" if the NICK
   command fails.
   """
-  def retryNick(%{args: [_unused, nick]}) do
+  defh retryNick(%{args: [_unused, nick]}) do
     Kaguya.Util.sendNick(nick <> "_")
   end
 
   @doc """
   Joins all channels initially specified in the configuration
   """
-  def joinInitChans(_message) do
+  defh joinInitChans do
     chans = Application.get_env(:kaguya, :channels)
     for chan <- chans, do: Kaguya.Channel.join(chan)
   end
@@ -96,7 +96,7 @@ defmodule Kaguya.Module.Builtin do
   @doc """
   Adds users to a channel
   """
-  def setChanNicks(%{args: [_nick, _sign, chan], trailing: nick_string}) do
+  defh setChanNicks(%{args: [_nick, _sign, chan], trailing: nick_string}) do
     nicks = String.split(nick_string)
     for nick <- nicks, do: Kaguya.Channel.set_user(chan, nick)
   end
@@ -104,9 +104,9 @@ defmodule Kaguya.Module.Builtin do
   @doc """
   Changes a user's mode internally in a channel.
   """
-  def changeUserMode(%{args: [_chan]}), do: nil
+  defh changeUserMode(%{args: [_chan]}), do: nil
 
-  def changeUserMode(%{args: [chan, mode, nick]}) do
+  defh changeUserMode(%{args: [chan, mode, nick]}) do
     case mode do
       "+v" -> Kaguya.Channel.set_user(chan, "+#{nick}")
       "+h" -> Kaguya.Channel.set_user(chan, "%#{nick}")
@@ -118,35 +118,35 @@ defmodule Kaguya.Module.Builtin do
   @doc """
   Changes a user's nick internally in a channel.
   """
-  def changeUserNick(%{trailing: new_nick, user: %{nick: old_nick}}) do
+  defh changeUserNick(%{trailing: new_nick, user: %{nick: old_nick}}) do
     for member <- :pg2.get_members(:channels), do: GenServer.call(member, {:rename_user, {old_nick, new_nick}})
   end
 
   @doc """
   Adds a user to a channel
   """
-  def addNickToChan(%{user: %{nick: nick}, trailing: chan}) do
+  defh addNickToChan(%{user: %{nick: nick}, trailing: chan}) do
     Kaguya.Channel.set_user(chan, nick)
   end
 
   @doc """
   Removes a user from a channel
   """
-  def removeNickFromChan(%{user: %{nick: nick}, trailing: chan}) do
+  defh removeNickFromChan(%{user: %{nick: nick}, trailing: chan}) do
     Kaguya.Channel.del_user(chan, nick)
   end
 
   @doc """
   Remove a user from all channels.
   """
-  def removeNickFromAllChans(%{user: %{nick: nick}}) do
+  defh removeNickFromAllChans(%{user: %{nick: nick}}) do
     for member <- :pg2.get_members(:channels), do: GenServer.call(member, {:del_user, nick})
   end
 
   @doc """
   Logs a PRIVMSG to a channel, or ignores it if it's a PM.
   """
-  def logMessage(%{args: [chan]} = message) do
+  defh logMessage(%{args: [chan]}) do
     pid = Kaguya.Util.getChanPid(chan)
     if pid != nil do
       GenServer.call(pid, {:log_message, message})

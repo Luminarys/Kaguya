@@ -3,9 +3,9 @@ defmodule Kaguya do
   Begins the execution of the bot.
   """
   use Application
-  use Supervisor
 
   def start(_type, _args) do
+    import Supervisor.Spec
     require Logger
     Logger.log :debug, "Starting bot!"
 
