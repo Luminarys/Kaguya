@@ -34,6 +34,7 @@ defmodule Kaguya.Channel do
   def init({name}) do
     require Logger
     Logger.log :debug, "Started channel #{name}!"
+    Util.joinChan(name)
     :pg2.join(:channels, self)
     :ets.insert(:channels, {name, self})
     users = :ets.new(:users, [:set, :protected])
@@ -114,12 +115,25 @@ defmodule Kaguya.Channel do
     {:reply, count, state}
   end
 
+  def handle_call(:part, _from, {name, _users, _buffer}) do
+    Util.partChan(name)
+    {:stop, :normal, :ok, nil}
+  end
+
   @doc """
   Convnenience function to join the specified channel.
   """
   def join(channel) do
     {:ok, _pid} = Supervisor.start_child(ChanSup, [channel, []])
-    Util.joinChan(channel)
+  end
+
+  @doc """
+  Convnenience function to part the specified channel.
+  """
+  def part(channel) do
+    [{^channel, pid}] = :ets.lookup(:channels, channel)
+    :ets.delete(:channels, channel)
+    :ok = GenServer.call(pid, :part)
   end
 
   @doc """
@@ -144,10 +158,7 @@ defmodule Kaguya.Channel do
   def del_user(chan, nick) do
     case :ets.lookup(:channels, chan) do
       [{^chan, pid}] -> :ok = GenServer.call(pid, {:del_user, nick})
-      _ ->
-        require Logger
-        Logger.log :warn, "Tried to delete unknown nick #{nick} from channel #{chan}"
-        :ok
+      _ -> :ok
     end
   end
 

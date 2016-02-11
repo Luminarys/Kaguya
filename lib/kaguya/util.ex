@@ -55,6 +55,14 @@ defmodule Kaguya.Util do
   end
 
   @doc """
+  Sends the IRC server the PART command.
+  """
+  def partChan(channel) do
+    m = %Message{command: "PART", args: [channel]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
   Looks up a channel's pid and returns it if it exists,
   nil otherwise.
   """
