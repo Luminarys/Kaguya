@@ -132,7 +132,7 @@ defmodule Kaguya.Module.Builtin do
   @doc """
   Removes a user from a channel
   """
-  defh removeNickFromChan(%{user: %{nick: nick}, trailing: chan}) do
+  defh removeNickFromChan(%{user: %{nick: nick}, args: [chan]}) do
     Kaguya.Channel.del_user(chan, nick)
   end
 

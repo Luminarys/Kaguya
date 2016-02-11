@@ -106,6 +106,14 @@ defmodule Kaguya.Channel do
     {:reply, fun.(buffer), state}
   end
 
+  def handle_call(:get_user_count, _from, {_name, users, _buffer} = state) do
+    count =
+      users
+      |> :ets.info
+      |> Keyword.get(:size)
+    {:reply, count, state}
+  end
+
   @doc """
   Convnenience function to join the specified channel.
   """
@@ -120,6 +128,14 @@ defmodule Kaguya.Channel do
   def set_user(chan, nick) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
     :ok = GenServer.call(pid, {:set_user, nick})
+  end
+
+  @doc """
+  Convenience function to get a user count from a channel.
+  """
+  def get_user_count(chan) do
+    [{^chan, pid}] = :ets.lookup(:channels, chan)
+    GenServer.call(pid, :get_user_count)
   end
 
   @doc """
