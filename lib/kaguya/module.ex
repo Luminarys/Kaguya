@@ -443,8 +443,8 @@ defmodule Kaguya.Module do
     make_defh_func(name, args, body)
   end
 
-  defmacro defh({name, _line, [msg_arg|map_arg]}, do: body) do
-    args = [quote(do: var!(message) = unquote(msg_arg)), map_arg]
+  defmacro defh({name, _line, [msg_arg, map_arg]}, do: body) do
+    args = quote do: [var!(message) = unquote(msg_arg), unquote(map_arg)]
     make_defh_func(name, args, body)
   end
 
