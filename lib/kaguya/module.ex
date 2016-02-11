@@ -242,7 +242,7 @@ defmodule Kaguya.Module do
     uniq? = Keyword.get(opts, :uniq, false)
     overrideable? = Keyword.get(opts, :overrideable, false)
     async? = Keyword.get(opts, :async, false)
-    match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]")
+    match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
 
     match_str
     |> gen_match_func_call(function)
@@ -317,7 +317,7 @@ defmodule Kaguya.Module do
   end
 
   defp gen_match_func_call(match_str, function) do
-    if String.contains? match_str, [":", "~"] do
+    if match_str |> get_var_list |> length > 0 do
       quote do
         unquote(function)(var!(message), res)
       end
@@ -392,7 +392,7 @@ defmodule Kaguya.Module do
   defp check_async(body, false), do: body
 
   defp add_captures(body, match_str, match_group) do
-    if String.contains? match_str, [":", "~"] do
+    if match_str |> get_var_list |> length > 0 do
       add_regex_capture(match_str, match_group, body)
     else
       add_string_capture(match_str, body)
@@ -403,7 +403,8 @@ defmodule Kaguya.Module do
     re = match_str |> extract_vars(match_group) |> Macro.escape
     quote do
       case Regex.named_captures(unquote(re), var!(message).trailing) do
-        nil -> :ok
+        nil ->
+          :ok
         res -> unquote(body)
       end
     end
@@ -626,7 +627,8 @@ defmodule Kaguya.Module do
   most of the time, but the function can be used if necessary.
   """
   def await_resp(match_str, chan, nick, timeout, match_group) do
-    has_vars? = String.contains? match_str, [":", "~"]
+    has_vars? = match_str |> get_var_list |> length > 0
+
     match_fun = get_match_fun(match_str, chan, nick, match_group, has_vars?)
 
     try do
