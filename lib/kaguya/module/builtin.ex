@@ -105,6 +105,7 @@ defmodule Kaguya.Module.Builtin do
   Changes a user's mode internally in a channel.
   """
   defh changeUserMode(%{args: [_chan]}), do: nil
+  defh changeUserMode(%{args: [_chan, _mode]}), do: nil
 
   defh changeUserMode(%{args: [chan, mode, nick]}) do
     case mode do
