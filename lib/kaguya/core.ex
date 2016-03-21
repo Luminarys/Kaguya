@@ -22,10 +22,15 @@ defmodule Kaguya.Core do
   def init(:ok) do
     require Logger
     opts = [:binary, active: true]
-    {:ok, socket} = :gen_tcp.connect(server, port, opts)
-    Logger.log :debug, "Started socket!"
-    send self, :init
-    {:ok, %{socket: socket}}
+    case :gen_tcp.connect(server, port, opts) do
+      {:ok, socket} ->
+        Logger.log :debug, "Started socket!"
+        send self, :init
+        {:ok, %{socket: socket}}
+      _ ->
+        Logger.log :error, "Could not connect to the given server/port!"
+        {:stop, "Failed to connect to supplied socket"}
+    end
   end
 
   def handle_call({:send, message}, _from, %{socket: socket} = state) do
