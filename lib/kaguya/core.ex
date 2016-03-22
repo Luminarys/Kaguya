@@ -21,7 +21,7 @@ defmodule Kaguya.Core do
 
   def init(:ok) do
     require Logger
-    opts = [:binary, active: true]
+    opts = [:binary, Application.get_env(:kaguya, :server_ip_type, :inet), active: true]
     case :gen_tcp.connect(server, port, opts) do
       {:ok, socket} ->
         Logger.log :debug, "Started socket!"

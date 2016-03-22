@@ -37,7 +37,7 @@ defmodule Kaguya.Mixfile do
 
   defp package do
     [
-     files: ["lib", "priv", "mix.exs", "README*", "LICENSE*"],
+     files: ["lib", "mix.exs", "README*", "LICENSE*"],
      maintainers: ["Luminarys"],
      licenses: ["ISC"],
      links: %{"GitHub" => "https://github.com/Luminarys/Kaguya"},

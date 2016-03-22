@@ -2,6 +2,8 @@ use Mix.Config
 
 config :kaguya,
   server: "my.irc.server",
+  # Should be either :inet or :inet6 if ipv6
+  server_ip_type: :inet,
   port: 6666,
   bot_name: "kaguya",
   channels: ["#kaguya"]
