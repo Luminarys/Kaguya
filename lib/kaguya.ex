@@ -1,6 +1,6 @@
 defmodule Kaguya do
   @moduledoc """
-  Begins the execution of the bot.
+  Top level module responsible for starting the bot properly.
   """
   use Application
 
@@ -29,9 +29,9 @@ defmodule Kaguya do
     :ets.new(:channels, [:set, :named_table, :public, {:read_concurrency, true}, {:write_concurrency, true}])
 
     children = [
-      supervisor(Kaguya.ModuleSupervisor, [[name: Kaguya.ModuleSupervisor]]),
       supervisor(Kaguya.ChannelSupervisor, [[name: Kaguya.ChannelSupervisor]]),
-      worker(Kaguya.Core, [[name: Kaguya.Core]])
+      supervisor(Kaguya.ModuleSupervisor, [[name: Kaguya.ModuleSupervisor]]),
+      worker(Kaguya.Core, [[name: Kaguya.Core]]),
     ]
 
     Logger.log :debug, "Starting supervisors!"

@@ -2,10 +2,18 @@ defmodule Kaguya.Module do
   use Behaviour
 
   @moduledoc """
+  Module which provides functionality used for creating IRC modules.
+
   When  this module is used, it will create wrapper
   functions which allow it to be automatically registered
-  as a module and include all macros. It can be included like:
+  as a module and include all macros. It can be included with:
   `use Kaguya.Module, "module name here"`
+
+  Once this is done, the module will autogenerate help documents,
+  start automatically and be able to use the `handle`, `defh`, and other macros.
+
+  If you want to run some code as the bot starts, it offers an init hook
+  as the function `module_init`. You can override this to provide functionality on start.
   """
 
   defmacro __using__(module_name) do
@@ -32,10 +40,16 @@ defmodule Kaguya.Module do
         table_name = String.to_atom "#{@module_name}_tasks"
         :ets.new(@task_table, [:set, :public, :named_table, {:read_concurrency, true}, {:write_concurrency, true}])
         Process.register(self, __MODULE__)
+        module_init()
         {:ok, []}
       end
 
       defoverridable init: 1
+
+      def module_init do
+      end
+
+      defoverridable module_init: 0
 
       # Used to scan for valid modules on start
       defmodule Kaguya_Module do
@@ -44,12 +58,18 @@ defmodule Kaguya.Module do
   end
 
   defmacro __before_compile__(env) do
-    help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
+    case Application.get_env(:kaguya, :help_cmd) do
+      nil -> :ok
+      help_cmd -> add_help_commands(help_cmd, env.module)
+    end
+  end
+
+  defp add_help_commands(help_cmd, module) do
     help_search = help_cmd <> " ~search_term"
 
-    if env.module == Kaguya.Module.Builtin do
-      add_docs(help_search, env.module, [doc: "Displays all commands which match the supplied prefix."])
-      add_docs(help_cmd, env.module, [doc: "Displays this message."])
+    if module == Kaguya.Module.Builtin do
+      add_docs(help_search, module, [doc: "Displays all commands which match the supplied prefix."])
+      add_docs(help_cmd, module, [doc: "Displays this message."])
     end
 
     quote do
@@ -131,7 +151,7 @@ defmodule Kaguya.Module do
   """
   defmacro match_all(function, opts \\ []) do
     add_handler_impl(function, __CALLER__.module, [])
-    func_exec_ast = quote do: unquote(function)(var!(message))
+    func_exec_ast = quote do: unquote(function)(var!(message), %{})
     uniq? = Keyword.get(opts, :uniq, false)
     overrideable? = Keyword.get(opts, :overrideable, false)
 
@@ -159,7 +179,7 @@ defmodule Kaguya.Module do
     if Keyword.get(opts, :capture, false) do
       quote do: unquote(function)(var!(message), res)
     else
-      quote do: unquote(function)(var!(message))
+      quote do: unquote(function)(var!(message), %{})
     end
 
     uniq? = Keyword.get(opts, :uniq, false)
@@ -244,8 +264,7 @@ defmodule Kaguya.Module do
     async? = Keyword.get(opts, :async, false)
     match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
 
-    match_str
-    |> gen_match_func_call(function)
+    gen_match_func_call(function)
     |> check_unique(function, uniq?, overrideable?)
     |> check_async(async?)
     |> add_captures(match_str, match_group)
@@ -316,15 +335,9 @@ defmodule Kaguya.Module do
     end)
   end
 
-  defp gen_match_func_call(match_str, function) do
-    if match_str |> get_var_list |> length > 0 do
-      quote do
-        unquote(function)(var!(message), res)
-      end
-    else
-      quote do
-        unquote(function)(var!(message))
-      end
+  defp gen_match_func_call(function) do
+    quote do
+      unquote(function)(var!(message), res)
     end
   end
 
@@ -392,28 +405,12 @@ defmodule Kaguya.Module do
   defp check_async(body, false), do: body
 
   defp add_captures(body, match_str, match_group) do
-    if match_str |> get_var_list |> length > 0 do
-      add_regex_capture(match_str, match_group, body)
-    else
-      add_string_capture(match_str, body)
-    end
-  end
-
-  defp add_regex_capture(match_str, match_group, body) do
     re = match_str |> extract_vars(match_group) |> Macro.escape
     quote do
       case Regex.named_captures(unquote(re), var!(message).trailing) do
         nil ->
           :ok
         res -> unquote(body)
-      end
-    end
-  end
-
-  defp add_string_capture(match_str, body) do
-    quote do
-      if var!(message).trailing == unquote(match_str) do
-        unquote(body)
       end
     end
   end
@@ -433,27 +430,77 @@ defmodule Kaguya.Module do
     end
   end
 
+  @doc """
+  Convenience macro for defining handlers. It injects the variable `message` into
+  the environment allowing macros like `reply` to work automatically. It additionally
+  detects various map types as arguments and is able to differentiate between maps
+  which destructure Kaguya messages, vs. the match argument.
+
+  For example:
+  ```
+  # This handler matches all calls to it.
+  defh some_handler do
+    ...
+  end
+
+  # This handler matches the IRC message struct's nick param.
+  defh some_other_handler(%{user: %{nick: nick}}) do
+    ...
+  end
+
+  # This handler matches the given match argument's value.
+  defh some_other_handler(%{"match_arg" => val) do
+    ...
+  end
+
+  # This handler matches the given match argument's value and the IRC message's nick.
+  # Note that the order of these two maps in the arguments DOES NOT MATTER.
+  # The macro will automatically detect which argument is mapped to which type of input for you.
+  defh some_other_handler(%{user: %{nick: nick}, %{"match_arg" => val) do
+    ...
+  end
+  ```
+  """
   defmacro defh({name, _line, nil}, do: body) do
-    args = [quote do: var!(message)]
+    args = quote do: [var!(message), var!(args)]
     make_defh_func(name, args, body)
   end
 
-  defmacro defh({name, _line, [msg_arg]}, do: body) do
-    args = [quote do: var!(message) = unquote(msg_arg)]
+  defmacro defh({name, _line, [arg]}, do: body) do
+    args =
+      case get_map_type(arg) do
+        :msg_map -> quote do: [var!(message) = unquote(arg), var!(args)]
+        :arg_map -> quote do: [var!(message), var!(args) = unquote(arg)]
+      end
     make_defh_func(name, args, body)
   end
 
-  defmacro defh({name, _line, [msg_arg, map_arg]}, do: body) do
-    args = quote do: [var!(message) = unquote(msg_arg), unquote(map_arg)]
+  defmacro defh({name, _line, [arg1, arg2]}, do: body) do
+    args =
+      case {get_map_type(arg1), get_map_type(arg2)} do
+        {:msg_map, :arg_map} -> quote do: [var!(message) = unquote(arg1), var!(args) = unquote(arg2)]
+        {:arg_map, :msg_map} -> quote do: [var!(args) = unquote(arg1), var!(message) = unquote(arg2)]
+      end
     make_defh_func(name, args, body)
+  end
+
+  defp get_map_type(qmap) do
+    {:%{}, _line, kvs} = qmap
+    keys = Enum.map(kvs, fn {key, _val} -> key end)
+    case {Enum.all?(keys, &is_atom/1), Enum.all?(keys, &is_bitstring/1)} do
+      {true, false} -> :msg_map
+      {false, true} -> :arg_map
+      _ -> raise "Maps in defh must be all atoms for a message, or all strings for arguments!"
+    end
   end
 
   defp make_defh_func(name, args, body) do
     quote do
       def unquote(name)(unquote_splicing(args)) do
         unquote(body)
-        # Suppress unused message warning
+        # Suppress unused var warning
         var!(message)
+        var!(args)
       end
     end
   end

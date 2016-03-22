@@ -25,9 +25,9 @@ defmodule Kaguya.Modules.Basic do
     end
   end
 
-  def pingHandler(message), do: reply "pong!"
+  defh pingHandler, do: reply "pong!"
 
-  def whenHandler(message, %{"nick" => nick, "trigger" => t, "repl" => r}) do
+  defh whenHandler(%{"nick" => nick, "trigger" => t, "repl" => r}) do
     reply "Alright."
     {msg, _resp} = await_resp "#{t}", nick: nick
     if msg != nil do
@@ -35,7 +35,7 @@ defmodule Kaguya.Modules.Basic do
     end
   end
 
-  def joinhandler(message, %{"chan" => chan}) do
+  defh joinhandler(%{"chan" => chan}) do
     Kaguya.Channel.join(chan)
   end
 end
