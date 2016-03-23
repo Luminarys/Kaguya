@@ -73,6 +73,43 @@ defmodule Kaguya.Util do
     end
   end
 
+  @doc """
+  Loads a module.
+  """
+  def loadModule(module) do
+    case :ets.lookup(:modules, module) do
+      [{^module, pid}] ->
+        GenServer.cast(pid, :load)
+        :ok
+      _ -> :notfound
+    end
+  end
+
+  @doc """
+  Unloads a module.
+  """
+  def unloadModule(module) do
+    case :ets.lookup(:modules, module) do
+      [{^module, pid}] ->
+        GenServer.cast(pid, :unload)
+        :ok
+      _ -> :notfound
+    end
+  end
+
+  @doc """
+  Unloads then loads a module.
+  """
+  def reloadModule(module) do
+    case :ets.lookup(:modules, module) do
+      [{^module, pid}] ->
+        GenServer.cast(pid, :unload)
+        GenServer.cast(pid, :load)
+        :ok
+      _ -> :notfound
+    end
+  end
+
   def clear, do: ""
   def white, do: "00"
   def black, do: "01"

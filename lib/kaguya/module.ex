@@ -12,8 +12,12 @@ defmodule Kaguya.Module do
   Once this is done, the module will autogenerate help documents,
   start automatically and be able to use the `handle`, `defh`, and other macros.
 
-  If you want to run some code as the bot starts, it offers an init hook
-  as the function `module_init`. You can override this to provide functionality on start.
+  Modules can be loaded and unloaded using `Kaguya.Util.loadModule`, `Kaguya.Util.unloadModule`,
+  and `Kaguya.Util.reloadModule`.
+
+  Modules also provide three hooks for certain events that you may want to react to.
+  These are `module_init()`, `module_load()`, and `module_unload()`. Init will be run when the bot
+  starts, and the load/unload functions are run whenever a module is loaded or unloaded.
   """
 
   defmacro __using__(module_name) do
@@ -37,6 +41,7 @@ defmodule Kaguya.Module do
         require Logger
         Logger.log :debug, "Started module #{@module_name}!"
         :pg2.join(:modules, self)
+        :ets.insert(:modules, {@module_name, self})
         table_name = String.to_atom "#{@module_name}_tasks"
         :ets.new(@task_table, [:set, :public, :named_table, {:read_concurrency, true}, {:write_concurrency, true}])
         Process.register(self, __MODULE__)
@@ -46,10 +51,36 @@ defmodule Kaguya.Module do
 
       defoverridable init: 1
 
+      def handle_cast(:unload, state) do
+        require Logger
+        :pg2.leave(:modules, self)
+        module_unload()
+        Logger.log :debug, "Unloaded module #{@module_name}!"
+        {:noreply, state}
+      end
+
+      def handle_cast(:load, state) do
+        require Logger
+        :pg2.join(:modules, self)
+        module_load()
+        Logger.log :debug, "Loaded module #{@module_name}!"
+        {:noreply, state}
+      end
+
       def module_init do
       end
 
       defoverridable module_init: 0
+
+      def module_load do
+      end
+
+      defoverridable module_load: 0
+
+      def module_unload do
+      end
+
+      defoverridable module_unload: 0
 
       # Used to scan for valid modules on start
       defmodule Kaguya_Module do
@@ -58,9 +89,14 @@ defmodule Kaguya.Module do
   end
 
   defmacro __before_compile__(env) do
-    case Application.get_env(:kaguya, :help_cmd) do
-      nil -> :ok
-      help_cmd -> add_help_commands(help_cmd, env.module)
+    help_func =
+      case Application.get_env(:kaguya, :help_cmd) do
+        nil -> nil
+        help_cmd -> add_help_commands(help_cmd, env.module)
+      end
+    quote do
+      unquote(help_func)
+      def handle_cast({:msg, _message}, state), do: {:noreply, state}
     end
   end
 
@@ -73,8 +109,6 @@ defmodule Kaguya.Module do
     end
 
     quote do
-      def handle_cast({:msg, _message}, state), do: {:noreply, state}
-
       def print_help(var!(message), %{"search_term" => term}) do
         import Kaguya.Util
         @match_docs
@@ -82,7 +116,7 @@ defmodule Kaguya.Module do
         |> Enum.map(&reply_priv_notice/1)
       end
 
-      def print_help(var!(message)) do
+      def print_help(var!(message), %{}) do
         Enum.map(@match_docs, &reply_priv_notice/1)
       end
     end
@@ -99,16 +133,21 @@ defmodule Kaguya.Module do
       :handlers, accumulate: true, persist: true
   end
 
-  defp generate_privmsg_handler(body) do
-    help_cmd = Application.get_env(:kaguya, :help_cmd, ".help")
-    help_search = help_cmd <> " ~search_term"
+  defp generate_privmsg_handler(body, module) do
+    help_ast =
+      case Application.get_env(:kaguya, :help_cmd) do
+        nil -> nil
+        help_cmd ->
+          help_search = help_cmd <> " ~search_term"
+          quote do
+            match unquote(help_cmd), :print_help, nodoc: true
+            match unquote(help_search), :print_help, nodoc: true
+          end
+      end
     quote do
       def handle_cast({:msg, %{command: "PRIVMSG"} = var!(message)}, state) do
         unquote(body)
-
-        match unquote(help_cmd), :print_help, nodoc: true
-        match unquote(help_search), :print_help, nodoc: true
-
+        unquote(help_ast)
         {:noreply, state}
       end
     end
@@ -129,7 +168,7 @@ defmodule Kaguya.Module do
   In the example, all IRC messages which have the PING command
   will be matched against `:pingHandler` and `:pingHandler2`
   """
-  defmacro handle("PRIVMSG", do: body), do: generate_privmsg_handler(body)
+  defmacro handle("PRIVMSG", do: body), do: generate_privmsg_handler(body, __CALLER__.module)
 
   defmacro handle(command, do: body) do
     quote do
@@ -168,19 +207,11 @@ defmodule Kaguya.Module do
   * async - runs the matcher asynchronously when this is true
   * uniq - ensures only one version of the matcher can be running per channel.
   Should be used with async: true.
-  * capture - if true, then the regex will be matched as a named captures,
-  and the specified function will be called with the message and resulting
-  map on successful match. By default this option is false.
   """
   defmacro match_re(re, function, opts \\ []) do
     add_handler_impl(function, __CALLER__.module, [])
 
-    func_exec_ast =
-    if Keyword.get(opts, :capture, false) do
-      quote do: unquote(function)(var!(message), res)
-    else
-      quote do: unquote(function)(var!(message), %{})
-    end
+    func_exec_ast = quote do: unquote(function)(var!(message), res)
 
     uniq? = Keyword.get(opts, :uniq, false)
     overrideable? = Keyword.get(opts, :overrideable, false)
@@ -188,24 +219,14 @@ defmodule Kaguya.Module do
     func_exec_ast
     |> check_async(Keyword.get(opts, :async, false))
     |> check_unique(function, uniq?, overrideable?)
-    |> add_re_matcher(re, Keyword.get(opts, :capture, false))
+    |> add_re_matcher(re)
   end
 
-  defp add_re_matcher(body, re, use_named_capture)
-
-  defp add_re_matcher(body, re, true) do
+  defp add_re_matcher(body, re) do
     quote do
       case Regex.named_captures(unquote(re), var!(message).trailing) do
         nil -> :ok
         res -> unquote(body)
-      end
-    end
-  end
-
-  defp add_re_matcher(body, re, false) do
-    quote do
-      if Regex.match?(unquote(re), var!(message).trailing) do
-        unquote(body)
       end
     end
   end
@@ -223,7 +244,7 @@ defmodule Kaguya.Module do
   end
   ```
 
-  In this example, the geRand function will be called
+  In this example, the genRand function will be called
   when a user sends a message to a channel saying something like
   `!rand 0 10`. If both parameters are strings, the genRand function
   will be passed the messages, and a map which will look like `%{low: 0, high: 10}`.

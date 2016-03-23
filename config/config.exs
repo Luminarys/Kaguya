@@ -6,7 +6,8 @@ config :kaguya,
   server_ip_type: :inet,
   port: 6666,
   bot_name: "kaguya",
-  channels: ["#kaguya"]
+  channels: ["#kaguya"],
+  help_cmd: ".help"
 
 # This is a bit of a hack...
 if File.exists?("config/secret.exs"), do: import_config "secret.exs"

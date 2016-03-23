@@ -1,5 +1,5 @@
-defmodule Kaguya.Module.Builtin do
-  use Kaguya.Module, "builtin"
+defmodule Kaguya.Module.Core do
+  use Kaguya.Module, "core"
 
   @moduledoc """
   Core builtin functions necessary for the bot to be function.
