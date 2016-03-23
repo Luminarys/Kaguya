@@ -133,7 +133,7 @@ defmodule Kaguya.Module do
       :handlers, accumulate: true, persist: true
   end
 
-  defp generate_privmsg_handler(body, module) do
+  defp generate_privmsg_handler(body) do
     help_ast =
       case Application.get_env(:kaguya, :help_cmd) do
         nil -> nil
@@ -168,7 +168,7 @@ defmodule Kaguya.Module do
   In the example, all IRC messages which have the PING command
   will be matched against `:pingHandler` and `:pingHandler2`
   """
-  defmacro handle("PRIVMSG", do: body), do: generate_privmsg_handler(body, __CALLER__.module)
+  defmacro handle("PRIVMSG", do: body), do: generate_privmsg_handler(body)
 
   defmacro handle(command, do: body) do
     quote do
@@ -505,6 +505,10 @@ defmodule Kaguya.Module do
     make_defh_func(name, args, body)
   end
 
+  # Maintain legacy compat in a few situations with old defh
+  defp get_map_type({:_, _, _}) do
+    :msg_map
+  end
   defp get_map_type(qmap) do
     {:%{}, _line, kvs} = qmap
     keys = Enum.map(kvs, fn {key, _val} -> key end)
