@@ -48,19 +48,11 @@ defmodule Kaguya.Module.Simple do
 end
 ```
 
-This module defines four commands to be handled. `!ping` and `!p` are
-aliased to the same handler, which has the bot respond `pong!`.
-The bot will also match the phrase "hi", and respond by saying hi back to that person with
-their nick. Last, `!say [some message]` will have
-the bot echo the message the user gave. The `~` indicates a
-trailing match in which all characters following `!say ` will be matched
-against. You may notice that there are two different maps in the handlers for hi and say.
-This is because the defh macro automatically infers whether or not the maps provided to it as arguments
-refer to the match arguments, or the message parameters. It should also be noted that within the function,
-two variables are unhygienically exposed via the macro, `message` and `args`. If for some reason you want to access
-the message struct and the argument map manually, these should be used.
+This module defines four commands to be handled: 
+* `!ping` and `!p` are aliased to the same handler, which has the bot respond `pong!`.
+* `hi` will cause the bot to reply saying "hi" with the persons' nick
+* `!say [some message]` will have the bot echo the message the user gave.
 
-Just by having your module use Kaguya.Module, it will automatically be added
-to the module list which receives all IRC messages and is launched at start time.
+The handler macro can accept up to two different parameters, a map which destructures a message struct, and a map which destructures a match from a command.
 
 You can find a more full featured example in `example/basic.ex`.
