@@ -640,6 +640,13 @@ defmodule Kaguya.Module do
   or if the recipient sent the message in a PM
   """
   def get_recip(message) do
+    case message.command do
+      "PRIVMSG" -> get_pm_recip(message)
+      "JOIN" -> message.trailing
+    end
+  end
+
+  defp get_pm_recip(message) do
     [chan] = message.args
     bot = Application.get_env(:kaguya, :bot_name)
     case chan do
