@@ -22,6 +22,40 @@ defmodule Kaguya.Util do
   end
 
   @doc """
+  Sends a WHOIS query to a server for a nick and returns a Kaguya.Core.User struct if
+  it was succesful. Otherwise nil is returned.
+  """
+  def getWhois(nick) do
+    match_fun =
+      fn msg ->
+        case msg.command do
+          "311" ->
+            "Example response: Lumi Wenno 43644 Wenno.User.AnimeBytes * :Wenno"
+            {true, %Kaguya.Core.User{
+              nick: Enum.at(msg.args, 1),
+              name: Enum.at(msg.args, 2),
+              rdns: Enum.at(msg.args, 3),
+            }}
+          "401" -> {true, nil}
+          _ -> false
+        end
+      end
+
+    Task.async(fn ->
+      :timer.sleep(100)
+      m = %Message{command: "WHOIS", args: [nick]}
+      :ok = GenServer.call(Kaguya.Core, {:send, m})
+    end)
+
+    try do
+      GenServer.call(Kaguya.Module.Core, {:add_callback, match_fun}, 3000)
+    catch
+      :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self})
+      nil
+    end
+  end
+
+  @doc """
   Sends the PASS command to the IRC server with
   the given password
   """

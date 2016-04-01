@@ -103,7 +103,7 @@ defmodule Kaguya.Module do
   defp add_help_commands(help_cmd, module) do
     help_search = help_cmd <> " ~search_term"
 
-    if module == Kaguya.Module.Builtin do
+    if module == Kaguya.Module.Core do
       add_docs(help_search, module, [doc: "Displays all commands which match the supplied prefix."])
       add_docs(help_cmd, module, [doc: "Displays this message."])
     end
@@ -704,9 +704,9 @@ defmodule Kaguya.Module do
     match_fun = get_match_fun(match_str, chan, nick, match_group, has_vars?)
 
     try do
-      GenServer.call(Kaguya.Module.Builtin, {:add_callback, match_fun}, timeout)
+      GenServer.call(Kaguya.Module.Core, {:add_callback, match_fun}, timeout)
     catch
-      :exit, _ -> GenServer.cast(Kaguya.Module.Builtin, {:remove_callback, self})
+      :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self})
       {nil, nil}
     end
   end

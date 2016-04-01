@@ -32,12 +32,18 @@ defmodule Kaguya.Module.Core do
     match_all :pingHandler
   end
 
-  handle "433" do
-    match_all :retryNick
+  handle "311" do
+    # Good WHOIS resp.
+    GenServer.cast(self, {:check_callbacks, message})
   end
 
   handle "353" do
     match_all :setChanNicks
+  end
+
+  handle "401" do
+    # Bad WHOIS resp.
+    GenServer.cast(self, {:check_callbacks, message})
   end
 
   handle "001" do
