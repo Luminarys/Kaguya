@@ -88,6 +88,14 @@ defmodule Kaguya.Channel do
     end
   end
 
+  def handle_call(:get_users, _from, {_name, users, _buffer} = state) do
+    chan_users =
+      :ets.foldr(fn {nick, user}, acc ->
+        [user|acc]
+      end, [], users)
+    {:reply, chan_users, state}
+  end
+
   def handle_call({:del_user, nick}, _from, {_name, users, _buffer} = state) do
     :ets.delete(users, nick)
     {:reply, :ok, state}
@@ -150,6 +158,14 @@ defmodule Kaguya.Channel do
   def get_user_count(chan) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
     GenServer.call(pid, :get_user_count)
+  end
+
+  @doc """
+  Convenience function to get all users from a chanel.
+  """
+  def get_users(chan) do
+    [{^chan, pid}] = :ets.lookup(:channels, chan)
+    GenServer.call(pid, :get_users)
   end
 
   @doc """
