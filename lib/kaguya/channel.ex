@@ -161,7 +161,7 @@ defmodule Kaguya.Channel do
   end
 
   @doc """
-  Convenience function to get all users from a chanel.
+  Convenience function to get all users from a channel.
   """
   def get_users(chan) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
