@@ -14,6 +14,7 @@ defmodule Kaguya.Core do
   defp port, do:  Application.get_env(:kaguya, :port)
   defp name, do:  Application.get_env(:kaguya, :bot_name)
   defp password, do:  Application.get_env(:kaguya, :password)
+  defp use_ssl, do:  Application.get_env(:kaguya, :use_ssl)
 
   def start_link(opts \\ []) do
     {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, opts)
@@ -22,14 +23,26 @@ defmodule Kaguya.Core do
   def init(:ok) do
     require Logger
     opts = [:binary, Application.get_env(:kaguya, :server_ip_type, :inet), active: true]
-    case :gen_tcp.connect(server, port, opts) do
-      {:ok, socket} ->
-        Logger.log :debug, "Started socket!"
-        send self, :init
-        {:ok, %{socket: socket}}
-      _ ->
-        Logger.log :error, "Could not connect to the given server/port!"
-        {:stop, "Failed to connect to supplied socket"}
+    if use_ssl do
+      case :ssl.connect(server, port, opts) do
+        {:ok, socket} ->
+          Logger.log :debug, "Started socket!"
+          send self, :init
+          {:ok, %{socket: socket}}
+        _ ->
+          Logger.log :error, "Could not connect to the given server/port!"
+          {:stop, "Failed to connect to supplied socket"}
+      end
+    else
+      case :gen_tcp.connect(server, port, opts) do
+        {:ok, socket} ->
+          Logger.log :debug, "Started socket!"
+          send self, :init
+          {:ok, %{socket: socket}}
+        _ ->
+          Logger.log :error, "Could not connect to the given server/port!"
+          {:stop, "Failed to connect to supplied socket"}
+      end
     end
   end
 
@@ -37,7 +50,11 @@ defmodule Kaguya.Core do
     require Logger
     raw_message = Kaguya.Core.Parser.parse_message_to_raw(message)
     Logger.log :debug, "Sending: #{raw_message}"
-    :gen_tcp.send(socket, raw_message)
+    if use_ssl do
+      :ssl.send(socket, raw_message)
+    else
+      :gen_tcp.send(socket, raw_message)
+    end
     {:reply, :ok, state}
   end
 
@@ -57,7 +74,16 @@ defmodule Kaguya.Core do
     {:noreply, state}
   end
 
+  def handle_info({:ssl, _socket, messages}, state) do
+    for msg <- String.split(String.rstrip(messages), "\r\n"), do: handle_message(msg)
+    {:noreply, state}
+  end
+
   def handle_info({:tcp_closed, _port}, state) do
+    {:noreply, state}
+  end
+
+  def handle_info({:ssl_closed, _port}, state) do
     {:noreply, state}
   end
 

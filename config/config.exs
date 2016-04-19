@@ -7,7 +7,8 @@ config :kaguya,
   port: 6666,
   bot_name: "kaguya",
   channels: ["#kaguya"],
-  help_cmd: ".help"
+  help_cmd: ".help",
+  use_ssl: false
 
 # This is a bit of a hack...
 if File.exists?("config/secret.exs"), do: import_config "secret.exs"
