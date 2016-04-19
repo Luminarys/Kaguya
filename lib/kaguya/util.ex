@@ -79,6 +79,67 @@ defmodule Kaguya.Util do
     m = %Kaguya.Core.Message{command: "NOTICE", args: [recipient], trailing: message} 
     :ok = GenServer.call(Kaguya.Core, {:send, m})
   end
+  
+  @doc """
+  Kicks `user` from `chan`.
+  """
+  def kick(chan, user) do
+    m = %Kaguya.Core.Message{command: "KICK", args: [chan, user]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
+  Kicks `user` from `chan` with the reason `reason`.
+  """
+  def kick(reason, chan, user) do
+    m = %Kaguya.Core.Message{command: "KICK", args: [chan, user, reason]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
+  Sets MODE +b on `mask` in `chan` where `mask` can be *!*@vhost.com
+  This bans a user from `chan`.
+  """
+  def ban(chan, mask) do
+    m = %Kaguya.Core.Message{command: "MODE", args: [chan, "+b", mask]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
+  Sets MODE -b on `mask` in `chan` where `mask` can be *!*@vhost.com
+  This unbans a user from `chan`.
+  """
+  def unban(chan, mask) do
+    m = %Kaguya.Core.Message{command: "MODE", args: [chan, "-b", mask]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
+  Sets MODE `mode` on `trailing` in `chan`.
+  Example:
+    `chan` is "#sekrit",
+    `mode` is "+b"
+    and `trailing` is "baduser"
+
+    This will set +b on baduser!*@*
+  """
+  def setMode(chan, mode, trailing) do
+    m = %Kaguya.Core.Message{command: "MODE", args: [chan, mode, trailing]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
+
+  @doc """
+  Sets MODE `mode` on `chan`.
+  Example:
+    `chan` is "#sekrit"
+    `mode` is "+s"
+
+    This will make the #sekrit channel secret.
+  """
+  def setMode(chan, mode) do
+    m = %Kaguya.Core.Message{command: "MODE", args: [chan, mode]}
+    :ok = GenServer.call(Kaguya.Core, {:send, m})
+  end
 
   @doc """
   Sends the IRC server the JOIN command.
