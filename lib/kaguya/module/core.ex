@@ -133,14 +133,22 @@ defmodule Kaguya.Module.Core do
   Adds a user to a channel
   """
   defh addNickToChan(%{user: %{nick: nick}, trailing: chan}) do
-    Kaguya.Channel.set_user(chan, nick)
+    if nick == Application.get_env(:kaguya, :bot_name) do
+      Kaguya.Channel.join(chan)
+    else
+      Kaguya.Channel.set_user(chan, nick)
+    end
   end
 
   @doc """
   Removes a user from a channel
   """
   defh removeNickFromChan(%{user: %{nick: nick}, args: [chan]}) do
-    Kaguya.Channel.del_user(chan, nick)
+    if nick == Application.get_env(:kaguya, :bot_name) do
+      Kaguya.Channel.part(chan)
+    else
+      Kaguya.Channel.del_user(chan, nick)
+    end
   end
 
   @doc """
