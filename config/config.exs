@@ -8,7 +8,8 @@ config :kaguya,
   bot_name: "kaguya",
   channels: ["#kaguya"],
   help_cmd: ".help",
-  use_ssl: false
+  use_ssl: false,
+  reconnect_interval: 5
 
 # This is a bit of a hack...
 if File.exists?("config/secret.exs"), do: import_config "secret.exs"

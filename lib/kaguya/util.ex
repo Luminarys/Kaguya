@@ -30,7 +30,6 @@ defmodule Kaguya.Util do
       fn msg ->
         case msg.command do
           "311" ->
-            "Example response: Lumi Wenno 43644 Wenno.User.AnimeBytes * :Wenno"
             {true, %Kaguya.Core.User{
               nick: Enum.at(msg.args, 1),
               name: Enum.at(msg.args, 2),

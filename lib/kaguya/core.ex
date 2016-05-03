@@ -1,5 +1,6 @@
 defmodule Kaguya.Core do
   use GenServer
+  require Logger
 
   @moduledoc """
   The core socket handler of the bot. It listens for raw messages
@@ -11,43 +12,23 @@ defmodule Kaguya.Core do
   @initial_state %{socket: nil}
 
   defp server, do: Application.get_env(:kaguya, :server) |> String.to_atom
-  defp port, do:  Application.get_env(:kaguya, :port)
-  defp name, do:  Application.get_env(:kaguya, :bot_name)
-  defp password, do:  Application.get_env(:kaguya, :password)
-  defp use_ssl, do:  Application.get_env(:kaguya, :use_ssl)
+  defp port, do: Application.get_env(:kaguya, :port)
+  defp name, do: Application.get_env(:kaguya, :bot_name)
+  defp password, do: Application.get_env(:kaguya, :password)
+  defp use_ssl, do: Application.get_env(:kaguya, :use_ssl)
+  defp reconnect_interval, do: Application.get_env(:kaguya, :reconnect_interval)
 
   def start_link(opts \\ []) do
     {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, opts)
   end
 
   def init(:ok) do
-    require Logger
-    opts = [:binary, Application.get_env(:kaguya, :server_ip_type, :inet), active: true]
-    if use_ssl do
-      case :ssl.connect(server, port, opts) do
-        {:ok, socket} ->
-          Logger.log :debug, "Started socket!"
-          send self, :init
-          {:ok, %{socket: socket}}
-        _ ->
-          Logger.log :error, "Could not connect to the given server/port!"
-          {:stop, "Failed to connect to supplied socket"}
-      end
-    else
-      case :gen_tcp.connect(server, port, opts) do
-        {:ok, socket} ->
-          Logger.log :debug, "Started socket!"
-          send self, :init
-          {:ok, %{socket: socket}}
-        _ ->
-          Logger.log :error, "Could not connect to the given server/port!"
-          {:stop, "Failed to connect to supplied socket"}
-      end
-    end
+    socket = reconnect()
+    send self, :init
+    {:ok, %{socket: socket}}
   end
 
   def handle_call({:send, message}, _from, %{socket: socket} = state) do
-    require Logger
     raw_message = Kaguya.Core.Parser.parse_message_to_raw(message)
     Logger.log :debug, "Sending: #{raw_message}"
     if use_ssl do
@@ -79,16 +60,42 @@ defmodule Kaguya.Core do
     {:noreply, state}
   end
 
-  def handle_info({:tcp_closed, _port}, state) do
-    {:noreply, state}
+  def handle_info({:tcp_closed, _port}, _state) do
+    socket = reconnect()
+    {:noreply, %{socket: socket}}
   end
 
   def handle_info({:ssl_closed, _port}, state) do
-    {:noreply, state}
+    socket = reconnect()
+    {:noreply, %{socket: socket}}
+  end
+
+  defp reconnect(tries \\ 0) do
+    opts = [:binary, Application.get_env(:kaguya, :server_ip_type, :inet), active: true]
+    if use_ssl do
+      case :ssl.connect(server, port, opts) do
+        {:ok, socket} ->
+          Logger.log :debug, "Started socket!"
+          socket
+        _ ->
+          Logger.log :error, "Could not connect to the given server/port!"
+          :timer.sleep(reconnect_interval)
+          reconnect
+      end
+    else
+      case :gen_tcp.connect(server, port, opts) do
+        {:ok, socket} ->
+          Logger.log :debug, "Started socket!"
+          socket
+        _ ->
+          Logger.log :error, "Could not connect to the given server/port!"
+          :timer.sleep(reconnect_interval * 1000)
+          reconnect
+      end
+    end
   end
 
   defp handle_message(raw_message) do
-    require Logger
     Logger.log :debug, "Received: #{raw_message}"
     try do
       message = Kaguya.Core.Parser.parse_raw_to_message(raw_message)
