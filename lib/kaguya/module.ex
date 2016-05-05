@@ -82,6 +82,11 @@ defmodule Kaguya.Module do
 
       defoverridable module_unload: 0
 
+      def on_message(msg) do
+      end
+
+      defoverridable on_message: 1
+
       # Used to scan for valid modules on start
       defmodule Kaguya_Module do
       end
@@ -96,7 +101,10 @@ defmodule Kaguya.Module do
       end
     quote do
       unquote(help_func)
-      def handle_cast({:msg, _message}, state), do: {:noreply, state}
+      def handle_cast({:msg, message}, state) do
+        on_message(message)
+        {:noreply, state}
+      end
     end
   end
 
@@ -146,6 +154,7 @@ defmodule Kaguya.Module do
       end
     quote do
       def handle_cast({:msg, %{command: "PRIVMSG"} = var!(message)}, state) do
+        on_message(var!(message))
         unquote(body)
         unquote(help_ast)
         {:noreply, state}
@@ -173,6 +182,7 @@ defmodule Kaguya.Module do
   defmacro handle(command, do: body) do
     quote do
       def handle_cast({:msg, %{command: unquote(command)} = var!(message)}, state) do
+        on_message(var!(message))
         unquote(body)
         {:noreply, state}
       end
