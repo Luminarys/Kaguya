@@ -204,6 +204,14 @@ defmodule Kaguya.Util do
     end
   end
 
+  def color(foreground) do
+    "" <> apply(Kaguya.Util, foreground, [])
+  end
+
+  def color(foreground, background) do
+    "" <> apply(Kaguya.Util, foreground, []) <> (apply(Kaguya.Util, background, []) |> String.replace("", ","))
+  end
+
   def clear, do: ""
   def white, do: "00"
   def black, do: "01"
