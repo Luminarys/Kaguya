@@ -118,8 +118,7 @@ defmodule Kaguya.Channel do
   def handle_call(:get_user_count, _from, {_name, users, _buffer} = state) do
     count =
       users
-      |> :ets.info
-      |> Keyword.get(:size)
+      |> :ets.info(:size)
     {:reply, count, state}
   end
 
