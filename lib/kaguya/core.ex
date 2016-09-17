@@ -41,11 +41,12 @@ defmodule Kaguya.Core do
 
   def handle_info(:init, state) do
     Task.start fn ->
-      Kaguya.Util.sendUser(name)
-      Kaguya.Util.sendNick(name)
       if password != nil do
         Kaguya.Util.sendPass(password)
       end
+      
+      Kaguya.Util.sendUser(name)
+      Kaguya.Util.sendNick(name)
     end
     {:noreply, state}
   end
