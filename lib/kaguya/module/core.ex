@@ -126,7 +126,7 @@ defmodule Kaguya.Module.Core do
   Adds a user to a channel
   """
   defh addNickToChan(%{user: %{nick: nick}, trailing: chan}) do
-    if nick == Application.get_env(:kaguya, :bot_name) do
+    if String.downcase(nick) == String.downcase(Application.get_env(:kaguya, :bot_name)) do
       Kaguya.Channel.join(chan)
     else
       Kaguya.Channel.set_user(chan, nick)

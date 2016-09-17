@@ -131,7 +131,10 @@ defmodule Kaguya.Channel do
   Convnenience function to join the specified channel.
   """
   def join(channel) do
-    {:ok, _pid} = Supervisor.start_child(ChanSup, [channel, []])
+    case :ets.lookup(:channels, channel) do
+      [] -> {:ok, _pid} = Supervisor.start_child(ChanSup, [channel, []])
+      _ -> nil
+    end
   end
 
   @doc """
@@ -165,6 +168,14 @@ defmodule Kaguya.Channel do
   def get_users(chan) do
     [{^chan, pid}] = :ets.lookup(:channels, chan)
     GenServer.call(pid, :get_users)
+  end
+
+  @doc """
+  Convenience function to get information of a user in a channel.
+  """
+  def get_user(chan, nick) do
+    [{^chan, pid}] = :ets.lookup(:channels, chan)
+    GenServer.call(pid, {:get_user, nick})
   end
 
   @doc """

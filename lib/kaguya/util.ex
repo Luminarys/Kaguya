@@ -22,6 +22,15 @@ defmodule Kaguya.Util do
   end
 
   @doc """
+  Returns the docstring for a handler in a module
+  """
+  def getDocs(module, handler) do
+    Code.get_docs(module, :docs)
+    |> Enum.find(fn {{f, _}, _, _, _, _} -> f == handler end)
+    |> elem(4)
+  end
+
+  @doc """
   Sends a WHOIS query to a server for a nick and returns a Kaguya.Core.User struct if
   it was succesful. Otherwise nil is returned.
   """
@@ -34,6 +43,7 @@ defmodule Kaguya.Util do
               nick: Enum.at(msg.args, 1),
               name: Enum.at(msg.args, 2),
               rdns: Enum.at(msg.args, 3),
+              host: Enum.at(msg.args, 3),
             }}
           "401" -> {true, nil}
           _ -> false

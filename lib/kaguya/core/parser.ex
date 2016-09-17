@@ -25,7 +25,7 @@ defmodule Kaguya.Core.Parser do
         [nick, info] ->
           nick = String.lstrip(nick, ?:)
           [name, rdns] = String.split(info, "@")
-          {%User{nick: nick, name: name, rdns: rdns}, message}
+          {%User{nick: nick, name: name, rdns: rdns, host: rdns}, message}
       end
     else
       {%User{}, raw}
