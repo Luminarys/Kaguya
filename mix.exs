@@ -4,7 +4,7 @@ defmodule Kaguya.Mixfile do
   def project do
     [
       app: :kaguya,
-      version: "0.4.8",
+      version: "0.4.9",
       elixir: "~> 1.1",
       build_embedded: Mix.env == :prod,
       start_permanent: Mix.env == :prod,
