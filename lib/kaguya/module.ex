@@ -569,6 +569,8 @@ defmodule Kaguya.Module do
   end
 
   defp create_validator(name, funcs) do
+    require Logger
+    Logger.log(:warn, "The validate macro is being deprecated, please use enforce instead")
     quote do
       def unquote(name)(message) do
         res = for func <- unquote(funcs), do: apply(__MODULE__, func, [message])
@@ -594,11 +596,58 @@ defmodule Kaguya.Module do
   defined prior will be matched within this scope.
   """
   defmacro validate(validator, do: body) do
+    require Logger
+    Logger.log(:warn, "The validate macro is being deprecated, please use enforce instead")
     quote do
       if unquote(validator)(var!(message)) do
         unquote(body)
       end
     end
+  end
+
+  @doc """
+  Enforces certain constraints around a block. This will replace
+  the validate macro.
+
+  ## Example:
+  ```
+  def is_me(msg), do: true
+  def not_ignored(msg), do: true
+
+  handle "PRIVMSG" do
+    enforce [:is_me, :not_ignored] do
+      match "Hi", :someHandler
+    end
+
+    enforce :is_me do
+      match "Bye", :someOtherHandler
+    end
+  ```
+  """
+  defmacro enforce(validators, do: body) when is_list(validators) do
+    enforce_rec(validators, body)
+  end
+
+  defmacro enforce(validator, do: body) do
+    enforce_rec([validator], body)
+  end
+
+  def enforce_rec([v], body) do
+    quote do
+      if unquote(v)(var!(message)) do
+        unquote(body)
+      end
+    end
+  end
+
+  def enforce_rec([v|rest], body) do
+    nb =
+      quote do
+        if unquote(v)(var!(message)) do
+          unquote(body)
+        end
+      end
+    enforce_rec(rest, nb)
   end
 
   @doc """
