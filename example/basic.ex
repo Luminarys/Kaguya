@@ -21,7 +21,7 @@ defmodule Kaguya.Modules.Basic do
     match "!when :nick says :trigger say :repl", :whenHandler, async: true
 
     validate :is_op do
-      match "!join :chan", :joinHandler, match_group: "[a-zA-Z0-9#&]+"
+      match "!join :chan([a-zA-Z0-9#&]+)", :joinHandler, match_group: "[a-zA-Z0-9#&]+"
     end
   end
 

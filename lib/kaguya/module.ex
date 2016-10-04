@@ -1,4 +1,8 @@
 defmodule Kaguya.Module do
+  defmodule Doc do
+    defstruct command: "", args: [], trailing: "", user: nil
+  end
+
   use Behaviour
 
   @moduledoc """
@@ -250,6 +254,7 @@ defmodule Kaguya.Module do
   ```
   handle "PRIVMSG" do
     match "!rand :low :high", :genRand, match_group: "[0-9]+"
+    match "!join :channel([#&][a-zA-Z0-9]+)", :joinChannel"
     match ["!say ~msg", "!s ~msg"], :sayMessage
   end
   ```
@@ -260,12 +265,17 @@ defmodule Kaguya.Module do
   will be passed the messages, and a map which will look like `%{low: 0, high: 10}`.
   Additionally the usage of a list allows for command aliases, in the second match.
 
+  The second match well find channel joining messages, using an embedded regex to
+  validate a channel. These embedded regexs will override the match_group value
+  and should be used when you need to match multiple parameters which will not
+  accept the same regex. That or if you just don't feel like writing `match_group: ""`.
+
   Available match string params are `:param` and `~param`. The former
   will match a specific space separated parameter, whereas the latter matches
   an unlimited number of characters.
 
   Match can also be called with a few different options. Currently there are:
-  * match_group - Regex which is used for matching in the match string. By default
+  * match_group - Default regex which is used for matching in the match string. By default
   it is `[a-zA-Z0-9]+`
   * async - Whether or not the matcher should be run synchronously or asynchronously.
   By default it is false, but should be set to true if await_resp is to be used.
@@ -455,7 +465,12 @@ defmodule Kaguya.Module do
 
   defp gen_part(part, match_group) do
     case part do
-      ":" <> param -> "(?<#{param}>#{match_group})"
+      ":" <> param ->
+        # Check for embedded regex capture
+        case Regex.named_captures(~r/(?<name>[a-zA-Z0-9]+)\((?<re>.+)\)/, param) do
+          %{"name" => name, "re" => re} -> "(?<#{name}>#{re})"
+          nil -> "(?<#{param}>#{match_group})"
+        end
       "~" <> param -> "(?<#{param}>.+)"
       text -> Regex.escape(text)
     end
