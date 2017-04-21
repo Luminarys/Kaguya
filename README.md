@@ -4,30 +4,30 @@
 
 ## Installation
 
-  1. Add kaguya to your list of dependencies in `mix.exs`:
-  ```elixir
-        def deps do
-          [{:kaguya, "~> x.y.z"}]
-        end
-    ```
+1. Add kaguya to your list of dependencies in `mix.exs`:
+```elixir
+def deps do
+  [{:kaguya, "~> x.y.z"}]
+end
+```
 
-  2. Run `mix deps.get`
+2. Run `mix deps.get`
 
-  3. Ensure kaguya is started before your application:
-  ```elixir
-        def application do
-          [applications: [:kaguya]]
-        end
-    ```
+3. Ensure kaguya is started before your application:
+```elixir
+def application do
+  [applications: [:kaguya]]
+end
+```
 
-  4. Configure kaguya in config.exs:
-  ```elixir
-        config :kaguya,
-          server: "my.irc.server",
-          port: 6666,
-          bot_name: "kaguya",
-          channels: ["#kaguya"]
-    ```
+4. Configure kaguya in config.exs:
+```elixir
+config :kaguya,
+  server: "my.irc.server",
+  port: 6666,
+  bot_name: "kaguya",
+  channels: ["#kaguya"]
+```
 
 ## Usage
 By default Kaguya won't do much. This is an example of a module which will
