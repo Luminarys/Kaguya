@@ -29,7 +29,7 @@ defmodule Kaguya.Module.Core do
   end
 
   def on_message(msg) do
-    GenServer.cast(self, {:check_callbacks, msg})
+    GenServer.cast(self(), {:check_callbacks, msg})
   end
 
   handle "PING" do

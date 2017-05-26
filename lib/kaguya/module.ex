@@ -44,11 +44,11 @@ defmodule Kaguya.Module do
       def init(:ok) do
         require Logger
         Logger.log :debug, "Started module #{@module_name}!"
-        :pg2.join(:modules, self)
-        :ets.insert(:modules, {@module_name, self})
+        :pg2.join(:modules, self())
+        :ets.insert(:modules, {@module_name, self()})
         table_name = String.to_atom "#{@module_name}_tasks"
         :ets.new(@task_table, [:set, :public, :named_table, {:read_concurrency, true}, {:write_concurrency, true}])
-        Process.register(self, __MODULE__)
+        Process.register(self(), __MODULE__)
         module_init()
         {:ok, []}
       end
@@ -57,7 +57,7 @@ defmodule Kaguya.Module do
 
       def handle_cast(:unload, state) do
         require Logger
-        :pg2.leave(:modules, self)
+        :pg2.leave(:modules, self())
         module_unload()
         Logger.log :debug, "Unloaded module #{@module_name}!"
         {:noreply, state}
@@ -65,7 +65,7 @@ defmodule Kaguya.Module do
 
       def handle_cast(:load, state) do
         require Logger
-        :pg2.join(:modules, self)
+        :pg2.join(:modules, self())
         module_load()
         Logger.log :debug, "Loaded module #{@module_name}!"
         {:noreply, state}
@@ -124,7 +124,7 @@ defmodule Kaguya.Module do
       def print_help(var!(message), %{"search_term" => term}) do
         import Kaguya.Util
         @match_docs
-        |> Enum.filter(fn match_doc -> String.starts_with?(match_doc, "#{yellow}#{term}") end)
+        |> Enum.filter(fn match_doc -> String.starts_with?(match_doc, "#{yellow()}#{term}") end)
         |> Enum.map(&reply_priv_notice/1)
       end
 
@@ -329,9 +329,9 @@ defmodule Kaguya.Module do
 
     if var_count > 0 do
       match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
-      "#{yellow}#{command} #{gray}(vars matching #{match_group}) #{clear}#{desc}"
+      "#{yellow()}#{command} #{gray()}(vars matching #{match_group}) #{clear()}#{desc}"
     else
-      "#{yellow}#{command} #{clear}#{desc}"
+      "#{yellow()}#{command} #{clear()}#{desc}"
     end
   end
 
@@ -413,7 +413,7 @@ defmodule Kaguya.Module do
           :ets.delete(@task_table, unquote(id_string))
         [] -> nil
       end
-      :ets.insert(@task_table, {unquote(id_string), self})
+      :ets.insert(@task_table, {unquote(id_string), self()})
       unquote(body)
       :ets.delete(@task_table, unquote(id_string))
     end
@@ -426,7 +426,7 @@ defmodule Kaguya.Module do
        case :ets.lookup(@task_table, unquote(id_string)) do
         [{_fun, pid}] -> nil
         [] ->
-          :ets.insert(@task_table, {unquote(id_string), self})
+          :ets.insert(@task_table, {unquote(id_string), self()})
           unquote(body)
           :ets.delete(@task_table, unquote(id_string))
       end
@@ -787,7 +787,7 @@ defmodule Kaguya.Module do
     try do
       GenServer.call(Kaguya.Module.Core, {:add_callback, match_fun}, timeout)
     catch
-      :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self})
+      :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self()})
       {nil, nil}
     end
   end

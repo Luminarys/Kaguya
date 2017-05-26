@@ -5,10 +5,12 @@ defmodule Kaguya.Util do
   Sends the USER command to the IRC server, with the given name,
   and an optional realname param.
   """
-  def sendUser(user, realname \\ "") do
-    if realname == "" do
-      realname = user
+  def sendUser(user, realname \\ nil) do
+    realname = case realname do
+      nil -> user
+      name -> name
     end
+
     m = %Message{command: "USER", args: [user, 8, "*"], trailing: realname}
     :ok = GenServer.call(Kaguya.Core, {:send, m})
   end
@@ -59,7 +61,7 @@ defmodule Kaguya.Util do
     try do
       GenServer.call(Kaguya.Module.Core, {:add_callback, match_fun}, 3000)
     catch
-      :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self})
+      :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self()})
       nil
     end
   end
@@ -85,10 +87,10 @@ defmodule Kaguya.Util do
   Sends a NOTICE to a recipient on the IRC server.
   """
   def sendNotice(message, recipient) do
-    m = %Kaguya.Core.Message{command: "NOTICE", args: [recipient], trailing: message} 
+    m = %Kaguya.Core.Message{command: "NOTICE", args: [recipient], trailing: message}
     :ok = GenServer.call(Kaguya.Core, {:send, m})
   end
-  
+
   @doc """
   Kicks `user` from `chan`.
   """
