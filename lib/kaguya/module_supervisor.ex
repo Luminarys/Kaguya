@@ -13,7 +13,7 @@ defmodule Kaguya.ModuleSupervisor do
 
   def init(:ok) do
     Logger.log :debug, "Starting modules!"
-    load_modules
+    load_modules()
     |> Enum.reverse
     |> Enum.map(fn module -> worker(module, []) end)
     |> supervise(strategy: :one_for_one)
