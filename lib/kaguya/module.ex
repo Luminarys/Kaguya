@@ -3,8 +3,6 @@ defmodule Kaguya.Module do
     defstruct command: "", args: [], trailing: "", user: nil
   end
 
-  use Behaviour
-
   @moduledoc """
   Module which provides functionality used for creating IRC modules.
 

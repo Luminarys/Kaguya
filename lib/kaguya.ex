@@ -6,14 +6,15 @@ defmodule Kaguya do
 
   @doc """
   Starts the bot, checking for proper configuration first.
+
+  Raises exception on incomplete configuration.
   """
   def start(_type, _args) do
     opts = Application.get_all_env(:kaguya)
-    if Enum.all?([:bot_name, :server, :port], fn k -> Keyword.has_key?(opts, k) end) do
-      start_bot
+    if Enum.all?([:bot_name, :server, :port], &(Map.has_key?(opts, &1))) do
+      start_bot()
     else
-      require Logger
-      Logger.log :error, "You must provide configuration options for the server, port, and bot name!"
+      raise "You must provide configuration options for the server, port, and bot name!"
     end
   end
 
