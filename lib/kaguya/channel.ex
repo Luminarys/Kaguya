@@ -35,8 +35,8 @@ defmodule Kaguya.Channel do
     require Logger
     Logger.log :debug, "Started channel #{name}!"
     Util.joinChan(name)
-    :pg2.join(:channels, self)
-    :ets.insert(:channels, {name, self})
+    :pg2.join(:channels, self())
+    :ets.insert(:channels, {name, self()})
     users = :ets.new(:users, [:set, :protected])
     {:ok, {name, users, []}}
   end
@@ -90,7 +90,7 @@ defmodule Kaguya.Channel do
 
   def handle_call(:get_users, _from, {_name, users, _buffer} = state) do
     chan_users =
-      :ets.foldr(fn {nick, user}, acc ->
+      :ets.foldr(fn {_nick, user}, acc ->
         [user|acc]
       end, [], users)
     {:reply, chan_users, state}
