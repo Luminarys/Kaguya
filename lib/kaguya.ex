@@ -11,7 +11,7 @@ defmodule Kaguya do
   """
   def start(_type, _args) do
     opts = Application.get_all_env(:kaguya)
-    if Enum.all?([:bot_name, :server, :port], &(Map.has_key?(opts, &1))) do
+    if Enum.all?([:bot_name, :server, :port], &(Keyword.has_key?(opts, &1))) do
       start_bot()
     else
       raise "You must provide configuration options for the server, port, and bot name!"
