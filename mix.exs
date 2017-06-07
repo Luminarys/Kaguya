@@ -23,8 +23,8 @@ defmodule Kaguya.Mixfile do
 
   def deps do
     [
-      {:earmark, "~> 0.1", only: :dev},
-      {:ex_doc, "~> 0.11", only: :dev},
+      {:earmark, "~> 1.1", only: :dev},
+      {:ex_doc, "~> 0.16", only: :dev, runtime: false},
     ]
   end
 
