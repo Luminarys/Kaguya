@@ -68,6 +68,17 @@ defmodule Kaguya.Core do
     {:noreply, %{socket: socket}}
   end
 
+  ## Active mode errors
+  def handle_info({:tcp_error, _socket, reason}, state) do
+    Logger.error "TCP Socket Error happend. Reason: #{reason}"
+    {:noreply, state}
+  end
+
+  def handle_info({:ssl_error, _socket, reason}, state) do
+    Logger.error "SSL Socket Error happend. Reason: #{reason}"
+    {:noreply, state}
+  end
+
   defp reconnect(_tries \\ 0) do
     opts = [:binary, Application.get_env(:kaguya, :server_ip_type, :inet), active: true]
     if use_ssl() do
