@@ -62,21 +62,15 @@ defmodule Kaguya.Core do
   end
 
   def handle_info({:tcp_closed, _port}, state) do
-    cancel_server_timer(state)
-    socket = reconnect()
-    {:noreply, %{socket: socket}}
+    handle_reconnect(state)
   end
 
   def handle_info({:ssl_closed, _port}, state) do
-    cancel_server_timer(state)
-    socket = reconnect()
-    {:noreply, %{socket: socket}}
+    handle_reconnect(state)
   end
 
   def handle_info(:reconnect, state) do
-    cancel_server_timer(state)
-    socket = reconnect()
-    {:noreply, %{socket: socket}}
+    handle_reconnect(state)
   end
 
   ## Active mode errors
@@ -128,6 +122,13 @@ defmodule Kaguya.Core do
 
   defp server_timer(state, time) do
     Map.put(cancel_server_timer(state), :server_timer, Process.send_after(self(), :reconnect, time))
+  end
+
+  defp handle_reconnect(state) do
+    cancel_server_timer(state)
+    socket = reconnect()
+    send(self(), :init)
+    {:noreply, server_timer(%{socket: socket}, server_timeout())}
   end
 
   defp handle_message(raw_message) do
