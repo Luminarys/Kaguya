@@ -11,6 +11,11 @@ defmodule Kaguya.Mixfile do
       description: description(),
       package: package(),
       deps: deps(),
+
+      #ex_doc variables
+      name: "Kaguya",
+      docs: [main: "Kaguya",
+             extras: ["README.md"]]
     ]
   end
 
