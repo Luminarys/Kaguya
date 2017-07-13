@@ -126,10 +126,11 @@ defmodule Kaguya.Module do
       end
 
       def print_all_help(var!(message), %{}) do
-        @match_docs
-        |> Enum.map(fn %{"cmd" => cmd} -> cmd end)
-        |> Enum.join("; ")
-        |> reply_priv_notice
+        cmds =
+          @match_docs
+          |> Enum.map(fn %{"cmd" => cmd} -> cmd end)
+          |> Enum.join("; ")
+        reply_priv_notice("#{@module_name}: #{cmds}")
       end
 
       defp make_docstring(match_str, function, module, opts) do
@@ -366,7 +367,7 @@ defmodule Kaguya.Module do
       Module.put_attribute(module, :match_docs, %{
         "cmd" => cmd,
         "data" => [match_str, function, module, opts],
-        "aliases" => Enum.map(aliases, &get_cmd/1)
+        "aliases" => Enum.map(aliases, &get_cmd/1) |> Enum.filter(fn a -> a != cmd end)
       })
     end
   end
