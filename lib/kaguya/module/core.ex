@@ -66,14 +66,6 @@ defmodule Kaguya.Module.Core do
 
   handle "PRIVMSG" do
     match_all :logMessage
-    match ["hello :name([a-zA-Z0-9]+)", "h :name([a-zA-Z0-9]+)"], :helloHandler
-  end
-
-  @doc """
-  says hello!
-  """
-  defh helloHandler(%{"name" => name}) do
-    reply "hi to #{name} too!"
   end
 
   @doc """
