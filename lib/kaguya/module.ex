@@ -119,7 +119,9 @@ defmodule Kaguya.Module do
         |> Enum.map(fn %{"data" => [ms, f, m, opts], "aliases" => aliases} ->
           doc = make_docstring(ms, f, m, opts)
           reply_priv_notice(doc)
-          reply_priv_notice("aliases: #{Enum.join(aliases, "; ")}")
+          if aliases != [] do
+            reply_priv_notice("aliases: #{Enum.join(aliases, "; ")}")
+          end
         end)
       end
 
