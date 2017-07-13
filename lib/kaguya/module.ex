@@ -126,11 +126,13 @@ defmodule Kaguya.Module do
       end
 
       def print_all_help(var!(message), %{}) do
-        cmds =
-          @match_docs
-          |> Enum.map(fn %{"cmd" => cmd} -> cmd end)
-          |> Enum.join("; ")
-        reply_priv_notice("#{@module_name}: #{cmds}")
+        if length(@match_docs) > 0 do
+          cmds =
+            @match_docs
+            |> Enum.map(fn %{"cmd" => cmd} -> cmd end)
+            |> Enum.join("; ")
+          reply_priv_notice("#{@module_name}: #{cmds}")
+        end
       end
 
       defp make_docstring(match_str, function, module, opts) do
