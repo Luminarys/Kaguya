@@ -3,8 +3,6 @@ defmodule Kaguya.Module do
     defstruct command: "", args: [], trailing: "", user: nil
   end
 
-  use Behaviour
-
   @moduledoc """
   Module which provides functionality used for creating IRC modules.
 
@@ -97,11 +95,11 @@ defmodule Kaguya.Module do
     end
   end
 
-  defmacro __before_compile__(env) do
+  defmacro __before_compile__(_env) do
     help_func =
       case Application.get_env(:kaguya, :help_cmd) do
         nil -> nil
-        help_cmd -> add_help_commands(help_cmd, env.module)
+        _ -> add_help_commands()
       end
     quote do
       unquote(help_func)
@@ -112,25 +110,63 @@ defmodule Kaguya.Module do
     end
   end
 
-  defp add_help_commands(help_cmd, module) do
-    help_search = help_cmd <> " ~search_term"
-
-    if module == Kaguya.Module.Core do
-      add_docs(help_search, module, [doc: "Displays all commands which match the supplied prefix."])
-      add_docs(help_cmd, module, [doc: "Displays this message."])
-    end
-
+  defp add_help_commands do
     quote do
       def print_help(var!(message), %{"search_term" => term}) do
         import Kaguya.Util
         @match_docs
-        |> Enum.filter(fn match_doc -> String.starts_with?(match_doc, "#{yellow()}#{term}") end)
-        |> Enum.map(&reply_priv_notice/1)
+        |> Enum.filter(fn %{"cmd" => cmd} -> term == cmd end)
+        |> Enum.map(fn %{"data" => [ms, f, m, opts], "aliases" => aliases} ->
+          doc = make_docstring(ms, f, m, opts)
+          reply_priv_notice(doc)
+          reply_priv_notice("aliases: #{Enum.join(aliases, "; ")}")
+        end)
       end
 
-      def print_help(var!(message), %{}) do
-        Enum.map(@match_docs, &reply_priv_notice/1)
+      def print_all_help(var!(message), %{}) do
+        @match_docs
+        |> Enum.map(fn %{"cmd" => cmd} -> cmd end)
+        |> Enum.join("; ")
+        |> reply_priv_notice
       end
+
+      defp make_docstring(match_str, function, module, opts) do
+        import Kaguya.Util
+        desc =
+          case Keyword.get(opts, :doc) do
+            nil ->
+              Code.get_docs(module, :docs)
+              |> Enum.filter(fn {{f, _}, _, _, _, _} -> f == function end)
+              |> Enum.map(fn {{_, _}, _, _, _, doc} -> doc end)
+              |> List.first
+            d -> d
+          end
+
+        command = get_doc_command_string(match_str)
+
+        if desc != nil do
+          "#{yellow()}#{command}#{clear()}: #{desc}"
+        else
+          "#{yellow()}#{command}#{clear()}"
+        end
+      end
+
+      defp get_doc_command_string(match_str) do
+        String.split(match_str)
+        |> Enum.map(fn part ->
+          case String.first(part) do
+            ":" ->
+              var_name = String.lstrip(part, ?:)
+              "<#{var_name}>"
+            "~" ->
+              var_name = String.lstrip(part, ?~)
+              "<#{var_name}...>"
+            _ -> part
+          end
+        end)
+        |> Enum.join(" ")
+      end
+
     end
   end
 
@@ -152,7 +188,7 @@ defmodule Kaguya.Module do
         help_cmd ->
           help_search = help_cmd <> " ~search_term"
           quote do
-            match unquote(help_cmd), :print_help, nodoc: true
+            match unquote(help_cmd), :print_all_help, nodoc: true
             match unquote(help_search), :print_help, nodoc: true
           end
       end
@@ -173,8 +209,8 @@ defmodule Kaguya.Module do
   ## Example
   ```
   handle "PING" do
-    match_all :pingHandler
-    match_all :pingHandler2
+  match_all :pingHandler
+  match_all :pingHandler2
   end
   ```
 
@@ -253,9 +289,9 @@ defmodule Kaguya.Module do
   ## Example
   ```
   handle "PRIVMSG" do
-    match "!rand :low :high", :genRand, match_group: "[0-9]+"
-    match "!join :channel([#&][a-zA-Z0-9]+)", :joinChannel"
-    match ["!say ~msg", "!s ~msg"], :sayMessage
+  match "!rand :low :high", :genRand, match_group: "[0-9]+"
+  match "!join :channel([#&][a-zA-Z0-9]+)", :joinChannel"
+  match ["!say ~msg", "!s ~msg"], :sayMessage
   end
   ```
 
@@ -285,19 +321,30 @@ defmodule Kaguya.Module do
   * uniq_overridable - This is used to determine whether or not a unique match can be overriden
   by a new match, or if the new match should exit and allow the previous match to continue running.
   By default it is true, and new matches will kill off old matches.
+
+  Help commands will additionally be generated for all matches. The "help_cmd" option of the config
+  will allow specifying a prefix to use for help triggers, and this command can be used standalone
+  to list all commands in format "cmd1; cmd2; ...". Additionally, "help_cmd some_cmd" will display more
+  detailed documentation for a given command, including a description(derived from the @doc attribute
+  of the specified handler), and aliases(all non head items in a list based match - ["!queue", "!q"]
+  will generate a single help command for !queue, and list "!q" as an alias".
   """
   defmacro match(match, function, opts \\ [])
 
   defmacro match(match_str, function, opts) when is_bitstring(match_str) do
-    make_match(match_str, function, opts, __CALLER__.module)
+    make_match(match_str, function, opts, __CALLER__.module, [])
   end
 
-  defmacro match(match_list, function, opts) when is_list(match_list) do
-    for match <- match_list, do: make_match(match, function, opts, __CALLER__.module)
+  defmacro match([primary|aliases], function, opts) do
+    pm = make_match(primary, function, opts, __CALLER__.module, aliases)
+    am = for match <- aliases, do: make_match(match, function, opts, __CALLER__.module, nil)
+    [pm|am]
   end
 
-  defp make_match(match_str, function, opts, module) do
-    add_docs(match_str, module, opts)
+  defp make_match(match_str, function, opts, module, aliases) do
+    if aliases != nil do
+      add_docs(match_str, function, module, opts, aliases)
+    end
     add_handler_impl(function, module, get_var_list(match_str))
 
     uniq? = Keyword.get(opts, :uniq, false)
@@ -311,44 +358,19 @@ defmodule Kaguya.Module do
     |> add_captures(match_str, match_group)
   end
 
-  defp add_docs(match_str, module, opts) do
+  defp add_docs(match_str, function, module, opts, aliases) do
     if !Keyword.has_key?(opts, :nodoc) do
-      doc_string = make_docstring(match_str, opts)
-      Module.put_attribute(module, :match_docs, doc_string)
+      cmd = get_cmd(match_str)
+      Module.put_attribute(module, :match_docs, %{
+        "cmd" => cmd,
+        "data" => [match_str, function, module, opts],
+        "aliases" => Enum.map(aliases, &get_cmd/1)
+      })
     end
   end
 
-  defp make_docstring(match_str, opts) do
-    import Kaguya.Util
-
-    desc = Keyword.get(opts, :doc, "")
-
-    command = get_doc_command_string(match_str)
-
-    var_count = get_match_var_num(match_str)
-
-    if var_count > 0 do
-      match_group = Keyword.get(opts, :match_group, "[a-zA-Z0-9]+")
-      "#{yellow()}#{command} #{gray()}(vars matching #{match_group}) #{clear()}#{desc}"
-    else
-      "#{yellow()}#{command} #{clear()}#{desc}"
-    end
-  end
-
-  defp get_doc_command_string(match_str) do
-    String.split(match_str)
-    |> Enum.map(fn part ->
-      case String.first(part) do
-        ":" ->
-          var_name = String.lstrip(part, ?:)
-          "<#{var_name}>"
-        "~" ->
-          var_name = String.lstrip(part, ?~)
-          "<#{var_name}...>"
-        _ -> part
-      end
-    end)
-    |> Enum.join(" ")
+  defp get_cmd(match_str) do
+    match_str |> String.split(" ") |> List.first
   end
 
   defp get_var_list(match_str) do
@@ -364,16 +386,6 @@ defmodule Kaguya.Module do
 
   defp add_handler_impl(name, module, vars) do
     Module.put_attribute(module, :handlers, {name, vars})
-  end
-
-  defp get_match_var_num(match_str) do
-    String.split(match_str)
-    |> Enum.reduce(0, fn part, acc ->
-      case String.first(part) do
-        ":" -> acc + 1
-        _ -> acc
-      end
-    end)
   end
 
   defp gen_match_func_call(function) do
@@ -423,7 +435,7 @@ defmodule Kaguya.Module do
     quote do
       [chan] = var!(message).args
       %{nick: nick} = var!(message).user
-       case :ets.lookup(@task_table, unquote(id_string)) do
+      case :ets.lookup(@task_table, unquote(id_string)) do
         [{_fun, pid}] -> nil
         [] ->
           :ets.insert(@task_table, {unquote(id_string), self()})
@@ -486,24 +498,24 @@ defmodule Kaguya.Module do
   ```
   # This handler matches all calls to it.
   defh some_handler do
-    ...
+  ...
   end
 
   # This handler matches the IRC message struct's nick param.
   defh some_other_handler(%{user: %{nick: nick}}) do
-    ...
+  ...
   end
 
   # This handler matches the given match argument's value.
   defh some_other_handler(%{"match_arg" => val) do
-    ...
+  ...
   end
 
   # This handler matches the given match argument's value and the IRC message's nick.
   # Note that the order of these two maps in the arguments DOES NOT MATTER.
   # The macro will automatically detect which argument is mapped to which type of input for you.
   defh some_other_handler(%{user: %{nick: nick}, %{"match_arg" => val) do
-    ...
+  ...
   end
   ```
   """
@@ -561,7 +573,7 @@ defmodule Kaguya.Module do
   ## Example:
   ```
   validator :is_me do
-    :check_nick_for_me
+  :check_nick_for_me
   end
 
   def check_nick_for_me(%{user: %{nick: "me"}}), do: true
@@ -601,9 +613,9 @@ defmodule Kaguya.Module do
   ## Example:
   ```
   handle "PRIVMSG" do
-    validate :is_me do
-      match "Hi", :hiHandler
-    end
+  validate :is_me do
+  match "Hi", :hiHandler
+  end
   end
   ```
 
@@ -630,13 +642,13 @@ defmodule Kaguya.Module do
   def not_ignored(msg), do: true
 
   handle "PRIVMSG" do
-    enforce [:is_me, :not_ignored] do
-      match "Hi", :someHandler
-    end
+  enforce [:is_me, :not_ignored] do
+  match "Hi", :someHandler
+  end
 
-    enforce :is_me do
-      match "Bye", :someOtherHandler
-    end
+  enforce :is_me do
+  match "Bye", :someOtherHandler
+  end
   ```
   """
   defmacro enforce(validators, do: body) when is_list(validators) do
@@ -741,11 +753,11 @@ defmodule Kaguya.Module do
   ## Example
   ```
   def handleOn(message, %{"target" => t, "repl" => r}) do
-    reply "Fine."
-    {msg, _resp} = await_resp t
-    if msg != nil do
-      reply r
-    end
+  reply "Fine."
+  {msg, _resp} = await_resp t
+  if msg != nil do
+  reply r
+  end
   end
   ```
 
@@ -788,7 +800,7 @@ defmodule Kaguya.Module do
       GenServer.call(Kaguya.Module.Core, {:add_callback, match_fun}, timeout)
     catch
       :exit, _ -> GenServer.cast(Kaguya.Module.Core, {:remove_callback, self()})
-      {nil, nil}
+        {nil, nil}
     end
   end
 
@@ -802,8 +814,8 @@ defmodule Kaguya.Module do
           nil -> false
           res -> {true, {msg, res}}
         end
-      else
-        false
+    else
+      false
       end
     end
   end

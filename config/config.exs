@@ -7,7 +7,6 @@ config :kaguya,
   port: 6666,
   bot_name: "kaguya",
   channels: ["#kaguya"],
-  help_cmd: ".help",
   use_ssl: false,
   reconnect_interval: 5
 

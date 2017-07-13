@@ -10,7 +10,7 @@ defmodule Kaguya do
   def start(_type, _args) do
     opts = Application.get_all_env(:kaguya)
     if Enum.all?([:bot_name, :server, :port], fn k -> Keyword.has_key?(opts, k) end) do
-      start_bot
+      start_bot()
     else
       require Logger
       Logger.log :error, "You must provide configuration options for the server, port, and bot name!"
