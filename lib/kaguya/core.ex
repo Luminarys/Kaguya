@@ -15,6 +15,7 @@ defmodule Kaguya.Core do
   defp password, do: Application.get_env(:kaguya, :password)
   defp use_ssl, do: Application.get_env(:kaguya, :use_ssl)
   defp reconnect_interval, do: Application.get_env(:kaguya, :reconnect_interval)
+  defp server_timeout, do: Application.get_env(:kaguya, :server_timeout)
 
   def start_link(opts \\ []) do
     {:ok, _pid} = GenServer.start_link(__MODULE__, :ok, opts)
@@ -23,7 +24,7 @@ defmodule Kaguya.Core do
   def init(:ok) do
     socket = reconnect()
     send self(), :init
-    {:ok, %{socket: socket}}
+    {:ok, server_timer(%{socket: socket}, server_timeout())}
   end
 
   def handle_call({:send, message}, _from, %{socket: socket} = state) do
@@ -49,23 +50,38 @@ defmodule Kaguya.Core do
   end
 
   def handle_info({:tcp, _socket, messages}, state) do
+    state = server_timer(state, server_timeout())
     for msg <- String.split(String.rstrip(messages), "\r\n"), do: handle_message(msg)
     {:noreply, state}
   end
 
   def handle_info({:ssl, _socket, messages}, state) do
+    state = server_timer(state, server_timeout())
     for msg <- String.split(String.rstrip(messages), "\r\n"), do: handle_message(msg)
     {:noreply, state}
   end
 
-  def handle_info({:tcp_closed, _port}, _state) do
-    socket = reconnect()
-    {:noreply, %{socket: socket}}
+  def handle_info({:tcp_closed, _port}, state) do
+    handle_reconnect(state)
   end
 
-  def handle_info({:ssl_closed, _port}, _state) do
-    socket = reconnect()
-    {:noreply, %{socket: socket}}
+  def handle_info({:ssl_closed, _port}, state) do
+    handle_reconnect(state)
+  end
+
+  def handle_info(:reconnect, state) do
+    handle_reconnect(state)
+  end
+
+  ## Active mode errors
+  def handle_info({:tcp_error, _socket, reason}, state) do
+    Logger.error "TCP Socket Error happend. Reason: #{reason}"
+    {:noreply, state}
+  end
+
+  def handle_info({:ssl_error, _socket, reason}, state) do
+    Logger.error "SSL Socket Error happend. Reason: #{reason}"
+    {:noreply, state}
   end
 
   defp reconnect(_tries \\ 0) do
@@ -91,6 +107,28 @@ defmodule Kaguya.Core do
           reconnect()
       end
     end
+  end
+
+  defp cancel_server_timer(state) do
+    case Map.pop(state, :server_timer) do
+      {nil, state}-> state
+      {timer, state} ->
+        Process.cancel_timer(timer)
+        state
+    end
+  end
+
+  defp server_timer(state, nil), do: state
+
+  defp server_timer(state, time) do
+    Map.put(cancel_server_timer(state), :server_timer, Process.send_after(self(), :reconnect, time))
+  end
+
+  defp handle_reconnect(state) do
+    cancel_server_timer(state)
+    socket = reconnect()
+    send(self(), :init)
+    {:noreply, server_timer(%{socket: socket}, server_timeout())}
   end
 
   defp handle_message(raw_message) do

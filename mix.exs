@@ -11,6 +11,11 @@ defmodule Kaguya.Mixfile do
       description: description(),
       package: package(),
       deps: deps(),
+
+      #ex_doc variables
+      name: "Kaguya",
+      docs: [main: "Kaguya",
+             extras: ["README.md"]]
     ]
   end
 
@@ -24,7 +29,7 @@ defmodule Kaguya.Mixfile do
   def deps do
     [
       {:earmark, "~> 1.2.2", only: :dev},
-      {:ex_doc, "~> 0.14", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.16", only: :dev, runtime: false},
     ]
   end
 
