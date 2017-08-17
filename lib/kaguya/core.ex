@@ -39,13 +39,16 @@ defmodule Kaguya.Core do
   end
 
   def handle_info(:init, state) do
-    Task.start fn ->
-      if password() != nil do
-        Kaguya.Util.sendPass(password())
-      end
-      Kaguya.Util.sendUser(name())
-      Kaguya.Util.sendNick(name())
+    if password() != nil do
+      Kaguya.Util.sendPass(password())
     end
+    Kaguya.Util.sendUser(name())
+    Kaguya.Util.sendNick(name())
+    {:noreply, state}
+  end
+
+  def handle_info(:rejoin_chan, state) do
+    :pg2.get_members(:channels) |> send(:join)
     {:noreply, state}
   end
 
@@ -128,6 +131,7 @@ defmodule Kaguya.Core do
     cancel_server_timer(state)
     socket = reconnect()
     send(self(), :init)
+    send(self(), :rejoin_chan)
     {:noreply, server_timer(%{socket: socket}, server_timeout())}
   end
 

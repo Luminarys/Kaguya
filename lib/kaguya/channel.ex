@@ -127,6 +127,10 @@ defmodule Kaguya.Channel do
     {:stop, :normal, :ok, nil}
   end
 
+  def handle_call(:join, _from, {name, _users, _buffer}) do
+    Kaguya.Channel.init([name])
+  end
+
   @doc """
   Convnenience function to join the specified channel.
   """
