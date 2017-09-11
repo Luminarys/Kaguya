@@ -28,22 +28,20 @@ defmodule Kaguya.Core do
   end
 
   def handle_call({:send, message}, _from, %{socket: socket} = state) do
-    raw_message = Kaguya.Core.Parser.parse_message_to_raw(message)
-    Logger.log :debug, "Sending: #{raw_message}"
-    if use_ssl() do
-      :ssl.send(socket, raw_message)
-    else
-      :gen_tcp.send(socket, raw_message)
-    end
+    send_message(message, socket)
     {:reply, :ok, state}
   end
 
-  def handle_info(:init, state) do
-    if password() != nil do
-      Kaguya.Util.sendPass(password())
+  def handle_info(:init, %{socket: socket} = state) do
+    alias Kaguya.Core.Message, as: Message
+
+    pass = password()
+    name = name()
+    if pass != nil do
+      send_message(%Message{command: "PASS", args: [pass]}, socket)
     end
-    Kaguya.Util.sendUser(name())
-    Kaguya.Util.sendNick(name())
+    send_message(%Message{command: "USER", args: [name, 8, "*"], trailing: name}, socket)
+    send_message(%Message{command: "NICK", args: [name]}, socket)
     {:noreply, state}
   end
 
@@ -133,6 +131,15 @@ defmodule Kaguya.Core do
     send(self(), :init)
     send(self(), :rejoin_chan)
     {:noreply, server_timer(%{socket: socket}, server_timeout())}
+  end
+
+  defp send_message(message, socket) do
+    raw_message = Kaguya.Core.Parser.parse_message_to_raw(message)
+    Logger.log :debug, "Sending: #{raw_message}"
+    case use_ssl() do
+      true -> :ssl.send(socket, raw_message)
+      false -> :gen_tcp.send(socket, raw_message)
+    end
   end
 
   defp handle_message(raw_message) do
