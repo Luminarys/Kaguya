@@ -138,7 +138,7 @@ defmodule Kaguya.Core do
     Logger.log :debug, "Sending: #{raw_message}"
     case use_ssl() do
       true -> :ssl.send(socket, raw_message)
-      false -> :gen_tcp.send(socket, raw_message)
+      _ -> :gen_tcp.send(socket, raw_message)
     end
   end
 
