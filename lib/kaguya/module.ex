@@ -139,11 +139,12 @@ defmodule Kaguya.Module do
         import Kaguya.Util
         desc =
           case Keyword.get(opts, :doc) do
-            nil ->
-              Code.get_docs(module, :docs)
-              |> Enum.filter(fn {{f, _}, _, _, _, _} -> f == function end)
-              |> Enum.map(fn {{_, _}, _, _, _, doc} -> doc end)
-              |> List.first
+            # TODO: Reimplement for Code.fetch_docs
+            nil -> nil
+              # Code.get_docs(module, :docs)
+              # |> Enum.filter(fn {{f, _}, _, _, _, _} -> f == function end)
+              # |> Enum.map(fn {{_, _}, _, _, _, doc} -> doc end)
+              # |> List.first
             d -> d
           end
 
