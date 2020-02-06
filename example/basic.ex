@@ -35,7 +35,7 @@ defmodule Kaguya.Modules.Basic do
     end
   end
 
-  defh joinhandler(%{"chan" => chan}) do
+  defh joinHandler(%{"chan" => chan}) do
     Kaguya.Channel.join(chan)
   end
 end

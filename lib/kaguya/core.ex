@@ -52,13 +52,13 @@ defmodule Kaguya.Core do
 
   def handle_info({:tcp, _socket, messages}, state) do
     state = server_timer(state, server_timeout())
-    for msg <- String.split(String.rstrip(messages), "\r\n"), do: handle_message(msg)
+    for msg <- String.split(String.trim_trailing(messages), "\r\n"), do: handle_message(msg)
     {:noreply, state}
   end
 
   def handle_info({:ssl, _socket, messages}, state) do
     state = server_timer(state, server_timeout())
-    for msg <- String.split(String.rstrip(messages), "\r\n"), do: handle_message(msg)
+    for msg <- String.split(String.trim_trailing(messages), "\r\n"), do: handle_message(msg)
     {:noreply, state}
   end
 

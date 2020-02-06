@@ -20,10 +20,10 @@ defmodule Kaguya.Core.Parser do
       [user_info, message] = String.split(raw, " ", parts: 2)
       case String.split(user_info, "!") do
         [server] ->
-          s = %User{nick: String.lstrip(server, ?:)}
+          s = %User{nick: String.trim_leading(server, ":")}
           {s, message}
         [nick, info] ->
-          nick = String.lstrip(nick, ?:)
+          nick = String.trim_leading(nick, ":")
           [name, rdns] = String.split(info, "@")
           {%User{nick: nick, name: name, rdns: rdns, host: rdns}, message}
       end
@@ -35,11 +35,11 @@ defmodule Kaguya.Core.Parser do
   defp get_args_and_trailing({user, message}) do
     case String.contains?(message, ":") do
       true ->
-        [args, trailing] = message |> String.rstrip |> String.split(" :", parts: 2)
+        [args, trailing] = message |> String.trim_trailing |> String.split(" :", parts: 2)
         [command|arg_list] = String.split(args)
         {command, arg_list, trailing, user}
       false ->
-        [command|arg_list] = message |> String.rstrip |> String.split
+        [command|arg_list] = message |> String.trim_trailing |> String.split
         {command, arg_list, "", user}
     end
   end
@@ -69,7 +69,7 @@ defmodule Kaguya.Core.Parser do
 
   defp add_trailing({raw, message}) do
     case message.trailing do
-      "" -> "#{String.rstrip raw}\r\n"
+      "" -> "#{String.trim_trailing(raw)}\r\n"
       trailing -> "#{raw}:#{trailing}\r\n"
     end
   end

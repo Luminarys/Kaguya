@@ -162,10 +162,10 @@ defmodule Kaguya.Module do
         |> Enum.map(fn part ->
           case String.first(part) do
             ":" ->
-              var_name = String.lstrip(part, ?:)
+              var_name = String.trim_leading(part, ":")
               "<#{var_name}>"
             "~" ->
-              var_name = String.lstrip(part, ?~)
+              var_name = String.trim_leading(part, "~")
               "<#{var_name}...>"
             _ -> part
           end
@@ -383,8 +383,8 @@ defmodule Kaguya.Module do
     String.split(match_str)
     |> Enum.reduce([], fn(part, acc) ->
       case String.first(part) do
-        ":" -> [String.lstrip(part, ?:)|acc]
-        "~" -> [String.lstrip(part, ?~)|acc]
+        ":" -> [String.trim_leading(part, ":")|acc]
+        "~" -> [String.trim_leading(part, "~")|acc]
         _ -> acc
       end
     end)

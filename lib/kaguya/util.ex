@@ -27,9 +27,11 @@ defmodule Kaguya.Util do
   Returns the docstring for a handler in a module
   """
   def getDocs(module, handler) do
-    Code.get_docs(module, :docs)
-    |> Enum.find(fn {{f, _}, _, _, _, _} -> f == handler end)
-    |> elem(4)
+    Code.fetch_docs(module)
+    |> elem(6)
+    |> Enum.find(fn {{_, name, _}, _, _, _, _} -> name == handler end)
+    |> elem(3)
+    |> Map.fetch!("en")
   end
 
   @doc """

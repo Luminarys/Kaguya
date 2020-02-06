@@ -22,7 +22,7 @@ defmodule Kaguya.ModuleSupervisor do
   defp load_modules do
     :code.get_path
     |> Enum.reduce([], fn path, modules ->
-      {:ok, files} = :erl_prim_loader.list_dir(path |> to_char_list)
+      {:ok, files} = :erl_prim_loader.list_dir(path |> to_charlist)
       [Enum.reduce(files, [], &match_module/2)|modules]
     end)
     |> List.flatten
